@@ -34,6 +34,8 @@ class Settings(BaseSettings):
     rag_enabled: bool = False
     # 知识库版本 — ingestion 更新知识库后递增，使 FAQ 缓存中的旧 citation 失效
     rag_kb_version: str = "v1"
+    # Embedding 模型 — v3 不支持 1536 维，用 v4 + dimension=1536（见 rag/embeddings.py）
+    embedding_model: str = "text-embedding-v4"
 
     # Redis (与 NestJS 端共用)
     redis_url: str = "redis://:redis_dev_2024@localhost:6379/0"
@@ -53,22 +55,22 @@ settings = Settings()
 
 
 # Agent Registry — 与 NestJS agents.config.ts 同源
+# 注意：服务器上的 DEEPSEEK_API_KEY 已失效（401, 实测 2026-09-28），
+# LLM 统一切换到 Qwen（DashScope compatible-mode, 同一 DASHSCOPE_API_KEY）
 AGENT_REGISTRY: dict[str, AgentConfig] = {
     # MVP 已启用
     "orchestrator": AgentConfig(
         enabled=True,
-        provider="deepseek",
-        model="deepseek-chat",  # DeepSeek-V3
+        provider="qwen",
+        model="qwen-turbo",  # 意图分类小任务, 快且便宜
         timeout=8.0,  # 给足时间, API 高峰也会慢; 超时后自动降级到关键词匹配
         temperature=0.0,
         max_tokens=200,
     ),
     "knowledge_qa": AgentConfig(
         enabled=True,
-        provider="deepseek",
-        # DeepSeek-V3 (deepseek-chat) — 非推理模型, 无 <think> 块, 首 token 快.
-        # 之前用 deepseek-reasoner(R1) 会先生成长思考块, 造成 ~5-15s 延迟且不流式.
-        model="deepseek-chat",
+        provider="qwen",
+        model="qwen-plus",  # 质量优先; 无推理块, 首 token 快, 支持流式
         timeout=12.0,
         temperature=0.3,
         max_tokens=300,   # 约180字，3-5个要点，生成时间约1-2s

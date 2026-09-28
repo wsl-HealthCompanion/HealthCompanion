@@ -1,20 +1,24 @@
 """
 Milvus 双知识库检索 (Task 4)
-在 Task 前身架构上增强:
+
+在原架构上增强:
 1. 并行查询 user_knowledge(用户专属, user_id 过滤) + medical_knowledge(通用医学)
 2. 检索结果保留 page_content + metadata + score（citation 必须能还原出处）
 3. 任意失败 → 返回空（RAG 降级安全：绝不阻塞主链路，绝不编造来源）
 
-score 方向说明（由集成测试 test_rag_milvus.py 实测确认后固定）：
-- collection 指标为 COSINE。Milvus 对 COSINE 返回 distance = 1 - cosine_similarity，
-  即数值越小越相似；langchain_milvus 的 similarity_search_with_score 透传该值。
-- 本模块统一换算为 similarity ∈ [0,1]（越大越相关）写入 metadata["score"]，
-  方向换算有集成测试守护。
+实现说明：
+- 直接使用 pymilvus 检索。langchain_milvus 0.3.3 的 MilvusClient 懒连接与内部
+  ORM Collection 路径不兼容（ConnectionNotExistException, 实测 2026-09-28），
+  直接 pymilvus 路径稳定且与 ingestion/测试一致。
+
+score 方向说明（集成测试确认）：
+- collection 指标为 COSINE。Milvus 返回 distance = 1 - cosine_similarity，
+  数值越小越相似；本模块统一换算为 similarity ∈ [0,1]（越大越相关）写入 metadata["score"]。
 """
 from typing import List, Dict, Any
 
 from langchain_core.documents import Document
-from langchain_milvus import Milvus
+from pymilvus import Collection, connections
 
 from app.rag.embeddings import QwenEmbeddings
 from app.config import settings
@@ -27,30 +31,23 @@ METRIC_COSINE = "COSINE"
 METRIC_IP = "IP"
 METRIC_L2 = "L2"
 
-
-def get_vector_store(collection_name: str) -> Milvus:
-    """获取 Milvus 向量存储实例（连接已存在、由 ingestion 显式建好的 collection）"""
-    return Milvus(
-        embedding_function=_embedding,
-        collection_name=collection_name,
-        connection_args={"uri": f"http://{settings.milvus_address}"},
-        text_field="text",
-        vector_field="vector",
-    )
+OUTPUT_FIELDS = [
+    "text", "source_id", "title", "publisher", "url",
+    "published_at", "retrieved_at", "section", "doc_type", "user_id",
+]
 
 
-def _get_metric_type(collection_name: str) -> str:
-    """读取 collection 向量字段的 metric（失败时按 COSINE 处理， ingestion 固定用 COSINE）"""
+def _ensure_connection() -> None:
+    """确保 pymilvus default 连接已建立（幂等）"""
     try:
-        from pymilvus import Collection
-        col = Collection(collection_name)
-        for idx in col.indexes:
-            metric = (idx.params or {}).get("metric_type")
-            if metric:
-                return str(metric).upper()
-    except Exception:
-        pass
-    return METRIC_COSINE
+        if not connections.has_connection("default"):
+            connections.connect(
+                alias="default",
+                uri=f"http://{settings.milvus_address}",
+                timeout=10,
+            )
+    except Exception as e:
+        print(f"[RAG] milvus connect failed: {e}")
 
 
 def _normalize_score(raw_score: float, metric: str) -> float:
@@ -72,12 +69,39 @@ def _normalize_score(raw_score: float, metric: str) -> float:
     return round(max(0.0, min(1.0, 1.0 - raw)), 6)
 
 
-def _attach_scores(pairs: List[tuple], metric: str) -> List[Document]:
+def _search(
+    collection_name: str,
+    query: str,
+    k: int,
+    expr: str | None = None,
+) -> List[Document]:
+    """单库检索：query 向量化 → pymilvus search → Document(page_content, metadata+score)"""
+    _ensure_connection()
+    col = Collection(collection_name)
+    col.load()
+    query_vec = _embedding.embed_query(query)
+    search_params = {"metric_type": METRIC_COSINE, "params": {"ef": 128}}
+    results = col.search(
+        data=[query_vec],
+        anns_field="vector",
+        param=search_params,
+        limit=k,
+        expr=expr,
+        output_fields=OUTPUT_FIELDS,
+    )
     docs: List[Document] = []
-    for doc, score in pairs:
-        doc.metadata["score"] = _normalize_score(score, metric)
-        doc.metadata["metric"] = metric
-        docs.append(doc)
+    for hits in results:
+        for h in hits:
+            ent = h.entity
+            metadata: Dict[str, Any] = {}
+            for field in OUTPUT_FIELDS:
+                metadata[field] = ent.get(field)
+            metadata["pk"] = str(h.id)          # 主键即 chunk_id
+            metadata["chunk_id"] = str(h.id)
+            metadata["score"] = _normalize_score(h.distance, METRIC_COSINE)
+            metadata["metric"] = METRIC_COSINE
+            metadata["collection"] = collection_name
+            docs.append(Document(page_content=ent.get("text") or "", metadata=metadata))
     return docs
 
 
@@ -92,29 +116,22 @@ async def dual_retrieve(
 
     Returns:
         {"user": [Document...], "general": [Document...]}
-        每个 Document.metadata 额外携带 score（similarity，越大越相关）与全部来源字段。
+        每个 Document.metadata 携带 score（similarity，越大越相关）与全部来源字段。
         任一库失败 → 该库返回空列表（RAG 降级，不抛异常、不阻塞主链路）。
     """
     user_docs: List[Document] = []
     general_docs: List[Document] = []
 
     try:
-        user_store = get_vector_store("user_knowledge")
-        metric = _get_metric_type("user_knowledge")
-        pairs = user_store.similarity_search_with_score(
-            query,
-            k=k_user,
+        user_docs = _search(
+            "user_knowledge", query, k_user,
             expr=f'user_id == "{user_id}"',
         )
-        user_docs = _attach_scores(pairs, metric)
     except Exception as e:
         print(f"[RAG] user_knowledge retrieval degraded: {e}")
 
     try:
-        general_store = get_vector_store("medical_knowledge")
-        metric = _get_metric_type("medical_knowledge")
-        pairs = general_store.similarity_search_with_score(query, k=k_general)
-        general_docs = _attach_scores(pairs, metric)
+        general_docs = _search("medical_knowledge", query, k_general)
     except Exception as e:
         print(f"[RAG] medical_knowledge retrieval degraded: {e}")
 
@@ -144,11 +161,28 @@ async def index_document(
     text: str,
     metadata: Dict[str, Any] | None = None,
 ) -> None:
-    """索引单条文档（动态添加知识；ingestion 批量导入请用 scripts/ingest_medical_knowledge.py）"""
+    """索引单条文档（动态添加知识；批量导入请用 scripts/ingest_medical_knowledge.py）"""
     try:
-        store = get_vector_store(collection)
-        doc = Document(page_content=text, metadata=metadata or {})
-        store.add_documents([doc], ids=[doc_id])
+        _ensure_connection()
+        col = Collection(collection)
+        col.load()
+        md = metadata or {}
+        row = {
+            "id": doc_id,
+            "text": text,
+            "vector": _embedding.embed_query(text),
+            "source_id": str(md.get("source_id", "")),
+            "title": str(md.get("title", "")),
+            "publisher": str(md.get("publisher", "")),
+            "url": str(md.get("url", "")),
+            "published_at": str(md.get("published_at", "")),
+            "retrieved_at": str(md.get("retrieved_at", "")),
+            "section": str(md.get("section", "")),
+            "doc_type": str(md.get("doc_type", "")),
+            "user_id": str(md.get("user_id", "")),
+        }
+        col.insert([row])
+        col.flush()
         print(f"Document {doc_id} indexed to {collection}")
     except Exception as e:
         print(f"Failed to index document {doc_id}: {e}")

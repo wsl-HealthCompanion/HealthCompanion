@@ -18,7 +18,11 @@ export class EmbeddingService {
   constructor(private configService: ConfigService) {
     this.apiKey = this.configService.get<string>('DASHSCOPE_API_KEY', '');
     this.baseUrl = 'https://dashscope.aliyuncs.com/api/v1/services/embeddings/text-embedding/text-embedding';
+    // v3 不支持 1536 维，默认 v4 + dimension=1536（与 Milvus schema 对齐）
+    this.model = this.configService.get<string>('EMBEDDING_MODEL', 'text-embedding-v4');
   }
+
+  private readonly model: string;
 
   /**
    * 将文本向量化

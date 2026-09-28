@@ -145,7 +145,9 @@ def build_chunks(source: dict, retrieved_at: str) -> list[dict]:
 def ensure_collection(name: str, with_user_field: bool) -> Collection:
     """显式建 collection（幂等）：固定 schema + HNSW COSINE 索引，1536 维。"""
     if utility.has_collection(name):
-        return Collection(name)
+        col = Collection(name)
+        col.load()  # 已存在的 collection 也必须 load，delete/search 才可用
+        return col
 
     fields = [
         FieldSchema("id", DataType.VARCHAR, max_length=128, is_primary=True),
@@ -289,11 +291,11 @@ def main() -> int:
         res = medical.search(
             data=[test_vec], anns_field="vector",
             param={"metric_type": "COSINE", "params": {"ef": 64}},
-            limit=2, output_fields=["chunk_id", "title", "publisher", "section"],
+            limit=2, output_fields=["id", "title", "publisher", "section"],
         )
         for hits in res:
             for h in hits:
-                print(f"[selftest] score={h.distance:.4f} chunk={h.entity.get('chunk_id')} pub={h.entity.get('publisher')}")
+                print(f"[selftest] score={h.distance:.4f} chunk={h.id} pub={h.entity.get('publisher')}")
     except Exception as e:
         print(f"[selftest] search failed: {e}")
 

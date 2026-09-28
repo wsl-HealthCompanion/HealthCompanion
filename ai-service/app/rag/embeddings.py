@@ -11,12 +11,18 @@ from app.config import settings
 
 
 class QwenEmbeddings(Embeddings):
-    """通义千问 Embedding(1536维)"""
+    """DashScope text-embedding（1536维）
+
+    说明：text-embedding-v3 不支持 1536 维（仅 [64..1024]），
+    实测 text-embedding-v4 + parameters.dimension=1536 可用（2026-09），
+    与 Milvus schema 的 1536 维对齐。模型可经 EMBEDDING_MODEL 覆盖。
+    """
 
     def __init__(self, api_key: str | None = None):
         self.api_key = api_key or settings.dashscope_api_key
         self.url = "https://dashscope.aliyuncs.com/api/v1/services/embeddings/text-embedding/text-embedding"
-        self.model = "text-embedding-v3"
+        self.model = getattr(settings, "embedding_model", None) or "text-embedding-v4"
+        self.dimension = 1536
 
     @retry(stop=stop_after_attempt(2), wait=wait_exponential(multiplier=1, min=1, max=3), reraise=True)
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
@@ -27,7 +33,11 @@ class QwenEmbeddings(Embeddings):
         try:
             response = httpx.post(
                 self.url,
-                json={"model": self.model, "input": {"texts": texts}},
+                json={
+                    "model": self.model,
+                    "input": {"texts": texts},
+                    "parameters": {"dimension": self.dimension},
+                },
                 headers={
                     "Authorization": f"Bearer {self.api_key}",
                     "Content-Type": "application/json",
