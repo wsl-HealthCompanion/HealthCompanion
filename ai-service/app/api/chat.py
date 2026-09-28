@@ -203,6 +203,26 @@ async def chat_stream(req: ChatRequest):
                     })
                 }
 
+            # 4.3 引用来源 (Task 4) — 只来自检索 metadata；在 done 前发出，
+            #     绝不进入 speech_chunk/token（数字人不朗读引用）
+            qa_output = final_state.get("agent_outputs", {}).get("knowledge_qa") or {}
+            for c in (qa_output.get("citations") or []):
+                if not isinstance(c, dict):
+                    continue
+                yield {
+                    "event": "message",
+                    "data": json.dumps({
+                        "type": "citation",
+                        "source": c.get("source", ""),
+                        "title": c.get("title", ""),
+                        "url": c.get("url", ""),
+                        "publisher": c.get("publisher", ""),
+                        "text": c.get("text", ""),
+                        "chunk_id": c.get("chunk_id", ""),
+                        "timestamp": now()
+                    })
+                }
+
             # 5. 完成
             yield {
                 "event": "message",

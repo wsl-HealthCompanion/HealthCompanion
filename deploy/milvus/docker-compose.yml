@@ -1,0 +1,79 @@
+# Milvus standalone — 可复现部署（Task 4 可信健康 RAG）
+#
+# 端口策略（安全边界）：
+#   - Milvus 19530/9091 仅绑定 127.0.0.1，项目内部访问，不暴露公网
+#   - etcd / minio 不映射宿主机端口（宿主机 9000/9001 已被其他项目的 minio 占用）
+#   - 容器间通过 compose 内部网络 yhzk-milvus 通信
+#
+# 版本固定（不使用 latest）：
+#   - milvus v2.6.2  与运行环境 pymilvus 2.6.17 / langchain-milvus 0.3.3 同 minor
+#   - etcd v3.5.14 / minio RELEASE.2024-05-28T17-19-04Z（官方 standalone 组合）
+#
+# 用法：
+#   docker compose -f deploy/milvus/docker-compose.yml up -d
+#   docker compose -f deploy/milvus/docker-compose.yml ps
+#   curl -s http://127.0.0.1:9091/healthz
+
+name: yhzk-milvus
+
+services:
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.14
+    container_name: yhzk-milvus-etcd
+    environment:
+      - ETCD_AUTO_COMPACTION_MODE=revision
+      - ETCD_AUTO_COMPACTION_RETENTION=1000
+      - ETCD_QUOTA_BACKEND_BYTES=4294967296
+      - ETCD_SNAPSHOT_COUNT=50000
+    volumes:
+      - ./volumes/etcd:/etcd
+    command: etcd -advertise-client-urls=http://etcd:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    restart: unless-stopped
+
+  minio:
+    # 说明：服务器 docker 镜像源（国内 mirror）不同步 minio 的历史 tag，
+    # 因此按 digest 固定版本（不可变引用，等价于严格版本锁定；本地已存在该镜像）。
+    image: minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
+    container_name: yhzk-milvus-minio
+    environment:
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+    volumes:
+      - ./volumes/minio:/minio_data
+    command: minio server /minio_data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    restart: unless-stopped
+
+  milvus:
+    image: milvusdb/milvus:v2.6.2
+    container_name: yhzk-milvus-standalone
+    command: ["milvus", "run", "standalone"]
+    security_opt:
+      - seccomp:unconfined
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+    volumes:
+      - ./volumes/milvus:/var/lib/milvus
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 30s
+      start_period: 120s
+      timeout: 20s
+      retries: 5
+    ports:
+      - "127.0.0.1:19530:19530"
+      - "127.0.0.1:9091:9091"
+    depends_on:
+      - etcd
+      - minio
+    restart: unless-stopped

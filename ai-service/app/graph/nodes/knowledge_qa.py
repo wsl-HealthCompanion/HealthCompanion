@@ -10,6 +10,8 @@ import redis.asyncio as aioredis
 from langchain_core.prompts import ChatPromptTemplate
 from app.llm.factory import get_llm
 from app.rag.retriever import dual_retrieve, format_context_for_llm
+from app.rag.citations import build_citations
+from app.rag.query_rewrite import build_retrieval_query
 from app.fallback.keyword import fallback_faq
 from app.config import settings
 from app.utils.speech_stream import normalize_speech_piece
@@ -17,6 +19,11 @@ from app.utils.speech_stream import normalize_speech_piece
 FA_CACHE_KEY_PREFIX = "faq_cache:"
 FA_CACHE_TTL = 3600
 FA_CACHE_MAX_ENTRIES = 200
+
+
+def _kb_version() -> str:
+    """知识库版本 — ingestion 更新后递增，使旧 citation 缓存自然失效"""
+    return (settings.rag_kb_version or "v0").strip()
 
 _redis: aioredis.Redis | None = None
 
@@ -39,8 +46,10 @@ async def _get_redis() -> aioredis.Redis:
 
 
 def _cache_key(question: str, user_id: str) -> str:
+    # key 携带知识库版本：知识库更新(版本递增)后旧缓存整体失效，
+    # 避免知识库已更新但旧 citation 被 TTL 窗口内长期沿用
     q_hash = hashlib.md5(question.lower().strip().encode()).hexdigest()
-    return f"{FA_CACHE_KEY_PREFIX}{user_id}:{q_hash}"
+    return f"{FA_CACHE_KEY_PREFIX}{_kb_version()}:{user_id}:{q_hash}"
 
 
 SYSTEM_PROMPT = """你是炎华众康的健康知识助手。基于以下知识库回答用户问题。
@@ -103,7 +112,9 @@ prompt_without_rag = ChatPromptTemplate.from_messages([
 
 
 async def knowledge_qa_node(state: dict) -> dict:
-    question = state.get("query_for_agents") or state["user_message"]
+    raw_question = state["user_message"]
+    # orchestrator 结合历史给出的改写查询（query_for_agents），是回答/检索语义的首选来源
+    question = state.get("query_for_agents") or raw_question
     user_id = state["user_context"]["user_id"]
 
     redis_client = await _get_redis()
@@ -117,9 +128,22 @@ async def knowledge_qa_node(state: dict) -> dict:
 
     try:
         context = ""
+        citations: list[dict] = []
         if settings.rag_enabled:
-            docs = await dual_retrieve(question, user_id, k_user=3, k_general=2)
+            # Task 4：检索查询走 build_retrieval_query（优先 LLM 改写，
+            # 短追问自动拼接历史主题，解决"那每天盐摄入多少"类追问检索不到的问题）
+            history_for_rewrite = state.get("conversation_history", [])
+            retrieval_query = build_retrieval_query(raw_question, history_for_rewrite, question)
+            print(f"[RAG] retrieval_query={retrieval_query!r} (raw={raw_question!r})")
+            docs = await dual_retrieve(retrieval_query, user_id, k_user=3, k_general=2)
             context = format_context_for_llm(docs)
+            # citation 只能来自检索结果的 metadata（去重、上限 3 条），禁止模型编造
+            citations = build_citations(
+                [*(docs.get("user") or []), *(docs.get("general") or [])],
+                limit=3,
+            )
+        else:
+            print("[RAG] disabled, answering without knowledge base")
 
         history = state.get("conversation_history", [])
         history_text = "\n".join([
@@ -160,7 +184,7 @@ async def knowledge_qa_node(state: dict) -> dict:
                 "knowledge_qa": {
                     "final_reply": answer,
                     "tts_text": normalize_speech_piece(answer),
-                    "citations": [],
+                    "citations": citations,
                     "quick_replies": [],
                 }
             }

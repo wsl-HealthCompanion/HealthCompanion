@@ -32,6 +32,8 @@ class Settings(BaseSettings):
     # RAG 开关 — Milvus 未部署/无知识库时关闭, knowledge_qa 直接用模型自身知识(方案B)
     # 关闭可省去 ~4.6s 的 Milvus 连接超时 + embedding 网络往返
     rag_enabled: bool = False
+    # 知识库版本 — ingestion 更新知识库后递增，使 FAQ 缓存中的旧 citation 失效
+    rag_kb_version: str = "v1"
 
     # Redis (与 NestJS 端共用)
     redis_url: str = "redis://:redis_dev_2024@localhost:6379/0"
