@@ -26,7 +26,13 @@ function stateLabel(state: XmovAvatarRuntimeState): string {
   return labels[state];
 }
 
-export default function XmovAvatarPlayer() {
+interface Props {
+  showDevControls?: boolean;
+}
+
+export default function XmovAvatarPlayer({
+  showDevControls = XMOV_CONFIG.showDevControls,
+}: Props) {
   const containerId = useMemo(
     () => `xmov-avatar-${Math.random().toString(36).slice(2, 10)}`,
     [],
@@ -109,7 +115,7 @@ export default function XmovAvatarPlayer() {
         <div className="xmov-error" role="alert">{error}</div>
       )}
 
-      {XMOV_CONFIG.showDevControls && state !== 'unconfigured' && (
+      {showDevControls && state !== 'unconfigured' && (
         <div className="xmov-dev-controls">
           <button disabled={!!busyAction} onClick={() => run('idle', p => p.idle())}>待机</button>
           <button disabled={!!busyAction} onClick={() => run('listen', p => p.listen())}>倾听</button>
@@ -117,6 +123,8 @@ export default function XmovAvatarPlayer() {
           <button disabled={!!busyAction} onClick={() => run('speak', p => p.speak(TASK1_SPEAK_TEXT))}>说话</button>
           <button disabled={!!busyAction} onClick={() => run('interrupt', p => p.interrupt())}>打断</button>
           <button disabled={!!busyAction} onClick={() => run('interactive', p => p.interactiveIdle())}>互动待机</button>
+          <button disabled={!!busyAction} onClick={() => run('destroy', p => p.destroy())}>销毁</button>
+          <button disabled={!!busyAction} onClick={() => run('reinit', p => p.init(containerId))}>重新初始化</button>
         </div>
       )}
     </div>
