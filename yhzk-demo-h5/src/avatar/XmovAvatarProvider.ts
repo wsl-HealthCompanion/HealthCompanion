@@ -15,11 +15,11 @@ export interface XmovAvatarProviderEvents {
 
 function escapeXml(value: string): string {
   return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&apos;');
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\"/g, '&quot;')
+    .replace(/'/g, '&apos;');
 }
 
 function toSsml(text: string): string {
@@ -30,7 +30,7 @@ function toSsml(text: string): string {
 }
 
 function normalizeState(raw: string): XmovAvatarRuntimeState {
-  const value = raw.toLowerCase().replaceAll('_', '-');
+  const value = raw.toLowerCase().replace(/_/g, '-');
   if (value.includes('listen')) return 'listening';
   if (value.includes('think')) return 'thinking';
   if (value.includes('speak')) return 'speaking';
