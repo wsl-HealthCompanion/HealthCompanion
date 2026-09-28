@@ -57,7 +57,12 @@ export interface SSEVisemesEvent extends SSEEvent {
 export interface SSECitationEvent extends SSEEvent {
   type: 'citation';
   source: string;
+  /** Task 4：可信来源扩展字段（均来自检索 metadata，向后兼容可选） */
+  title?: string;
+  url?: string;
+  publisher?: string;
   text: string;
+  chunk_id?: string;
 }
 
 export interface SSEQuickRepliesEvent extends SSEEvent {
@@ -92,5 +97,10 @@ export interface QuickReplyItem {
 
 export interface Citation {
   source: string;
+  /** Task 4：扩展字段（可选，向后兼容旧数据） */
+  title?: string;
+  url?: string;
+  publisher?: string;
   text: string;
+  chunk_id?: string;
 }

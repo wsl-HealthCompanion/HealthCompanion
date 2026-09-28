@@ -703,6 +703,9 @@ export class ChatService {
     let accumulatedReply = '';
     let lastIntent: string | undefined;
     let lastEmotion = 'neutral';
+    // Task 4：Python citation 事件会自动透传（非 done 全透传），
+    // 这里额外累积，回答完成后随 ChatMessage 持久化（历史消息可恢复引用卡片）
+    let citations: Citation[] = [];
 
     // L2 中期记忆 — 加载最近摘要注入上下文
     const recentMemories = await this.loadSessionMemories(session.session_id);
@@ -727,6 +730,21 @@ export class ChatService {
         // 记录意图和情绪
         if (event.type === 'intent') {
           lastIntent = event.primary;
+        }
+
+        // Task 4：累积可信引用（仅来自 Python 检索 metadata）
+        if (event.type === 'citation') {
+          const c = event as SSECitationEvent;
+          if (citations.length < 3) {
+            citations.push({
+              source: c.source,
+              title: c.title,
+              url: c.url,
+              publisher: c.publisher,
+              text: c.text,
+              chunk_id: c.chunk_id,
+            });
+          }
         }
 
         if (event.type === 'done') {
@@ -776,6 +794,7 @@ export class ChatService {
         intent: lastIntent,
         tts_url: audioUrl,
         viseme_data: visemeTimeline as any,
+        citations: (citations.length > 0 ? citations : undefined) as any,
       });
 
       // 更新会话

@@ -51,9 +51,10 @@ export class EmbeddingService {
     } catch (error) {
       this.logger.error(`Embedding failed: ${error}`);
 
-      // 降级: 返回零向量 (实际生产应使用本地 fallback embedding)
-      this.logger.warn('Returning zero vector as fallback');
-      return new Array(1536).fill(0);
+      // Task 4 安全降级：绝不返回零向量。
+      // 零向量与任何文本同分，会在 Milvus 中产生随机检索结果，
+      // 导致不可信的医学内容进入 LLM。抛错让上层进入无 RAG 降级路径。
+      throw new Error(`Embedding failed: ${(error as Error)?.message || String(error)}`);
     }
   }
 
@@ -82,7 +83,9 @@ export class EmbeddingService {
       return response.data?.output?.embeddings?.map((e: any) => e.embedding) || [];
     } catch (error) {
       this.logger.error(`Batch embedding failed: ${error}`);
-      return texts.map(() => new Array(1536).fill(0));
+
+      // Task 4 安全降级：批量失败同样抛错（禁止零向量随机检索）
+      throw new Error(`Batch embedding failed: ${(error as Error)?.message || String(error)}`);
     }
   }
 }

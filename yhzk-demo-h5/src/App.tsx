@@ -24,7 +24,7 @@ import { saveProfileToBackend, loadProfileFromBackend } from './services/user';
 import { exitAuthenticatedSession } from './appSession';
 import { getGreeting, getPresetQuestions } from './presetProfile';
 import type { PresetProfile } from './presetProfile';
-import type { ChatMessage, Emotion } from './types';
+import type { ChatMessage, Citation, Emotion } from './types';
 import './index.scss';
 
 type DhStatus = 'idle' | 'thinking' | 'speaking';
@@ -269,6 +269,7 @@ export default function App() {
       id: m.id || `m_${i}`,
       role: m.role as 'user' | 'assistant',
       content: m.content,
+      citations: (m as any).citations as Citation[] | undefined,
     })));
     // 切到对话Tab
     setActiveTab('chat');
@@ -393,6 +394,7 @@ export default function App() {
     let subtitleEventPoller: ReturnType<typeof setInterval> | null = null;
     let lastSubtitleEventId = 0;
     let isFirstSpeak = true;
+    let roundCitations: Citation[] = [];  // Task 4：本轮可信引用（不进入语音链路）
     let speakChain: Promise<void> = Promise.resolve();  // 串行化 speak 请求，防止乱序
 
     // 首次 speak 时启动字幕轮询，后续复用
@@ -495,6 +497,10 @@ export default function App() {
           onSpeechChunk: (text) => {
             if (isCurrentConversation()) handleSpeechChunk(text);
           },
+          onCitation: (citation) => {
+            if (!isCurrentConversation()) return;
+            if (roundCitations.length < 3) roundCitations.push(citation);
+          },
           onEmotion: (e) => { if (isCurrentConversation()) { aiEmotion = e; setEmotion(e); } },
           onDone: (sid) => {
             if (!isCurrentConversation()) return;
@@ -517,6 +523,7 @@ export default function App() {
         if (!isCurrentConversation()) return;
         aiEmotion = json.emotion;
         setEmotion(json.emotion);
+        if (Array.isArray(json.citations)) roundCitations = json.citations.slice(0, 3);
         if (json.sessionId) {
           if (!currentSessionId) { setCurrentSessionId(json.sessionId); localStorage.setItem(`yhzk_last_session_${getUid()}`, json.sessionId); }
           if (!sessionId) setSessionId(json.sessionId);
@@ -548,7 +555,12 @@ export default function App() {
 
     const finalContent = contentRef.current || '抱歉，我暂时无法回答，请稍后再试。';
     cancelStreamFlush();
-    setMessages(prev => [...prev, { id: `a_${Date.now()}`, role: 'assistant', content: finalContent }]);
+    setMessages(prev => [...prev, {
+      id: `a_${Date.now()}`,
+      role: 'assistant',
+      content: finalContent,
+      citations: roundCitations.length > 0 ? roundCitations : undefined,
+    }]);
     setTimeout(() => {
       if (conversationGenerationRef.current === conversationGeneration) setStatus('idle');
     }, 1500);
@@ -771,8 +783,32 @@ export default function App() {
                 return (
                 <div key={m.id} className={`msg-row ${m.role}`}>
                   <div className="msg-avatar">{m.role === 'user' ? '你' : 'AI'}</div>
-                  <div className="msg-col">
-                    <div className="msg-bubble">{cleanMd(m.content)}</div>
+                <div className="msg-col">
+                  <div className="msg-bubble">{cleanMd(m.content)}</div>
+                  {m.role === 'assistant' && m.citations && m.citations.length > 0 && (
+                    <div className="msg-cites">
+                      <div className="msg-cites-title">参考来源</div>
+                      {m.citations.map((c, ci) => (
+                        <div className="msg-cite" key={c.chunk_id || `cite_${ci}`}>
+                          <span className="msg-cite-no">{ci + 1}</span>
+                          {c.url ? (
+                            <a
+                              className="msg-cite-link"
+                              href={c.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              {c.publisher || c.source}{c.title ? ` · ${c.title}` : ''}
+                            </a>
+                          ) : (
+                            <span className="msg-cite-link">
+                              {c.publisher || c.source}{c.title ? ` · ${c.title}` : ''}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                     <div className="msg-acts">
                       <button className="msg-act-btn" onClick={() => navigator.clipboard.writeText(cleanMd(m.content))}>📋 复制</button>
                       {m.role === 'user' ? (

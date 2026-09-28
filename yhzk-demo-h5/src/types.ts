@@ -12,6 +12,18 @@ export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  /** Task 4：可信引用来源（来自后端 RAG 检索 metadata，禁止编造） */
+  citations?: Citation[];
+}
+
+/** 参考来源（与 NestJS Citation / Python citation 事件对齐） */
+export interface Citation {
+  source: string;
+  title?: string;
+  url?: string;
+  publisher?: string;
+  text?: string;
+  chunk_id?: string;
 }
 
 export interface QuickReply {

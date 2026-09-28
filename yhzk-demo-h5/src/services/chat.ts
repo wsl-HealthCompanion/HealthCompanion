@@ -4,7 +4,7 @@
 // ============================================================
 import { API_BASE, DEMO_TOKEN } from '../config';
 import { getToken } from './auth';
-import type { Emotion } from '../types';
+import type { Citation, Emotion } from '../types';
 
 const authHeaders = () => ({
   'Content-Type': 'application/json',
@@ -23,6 +23,8 @@ export interface StreamCallbacks {
   onIntent?: (intent: string, emotion?: Emotion) => void;
   onSpeechChunk?: (text: string, index: number) => void;
   onEmotion?: (e: Emotion) => void;
+  /** Task 4：可信引用来源（SSE citation 事件，绝不进入 speech_chunk） */
+  onCitation?: (citation: Citation) => void;
   onDone?: (sessionId?: string) => void;
 }
 
@@ -75,6 +77,17 @@ export async function streamChat(
             const emotion = evt.emotion as Emotion | undefined;
             cb.onIntent?.(evt.primary || evt.intent || 'unknown', emotion);
             if (emotion) cb.onEmotion?.(emotion);
+          }
+          else if (evt.type === 'citation') {
+            // Task 4：引用来自检索 metadata，仅透传展示字段
+            cb.onCitation?.({
+              source: evt.source || '',
+              title: evt.title || '',
+              url: evt.url || '',
+              publisher: evt.publisher || '',
+              text: evt.text || '',
+              chunk_id: evt.chunk_id || '',
+            });
           }
           else if (evt.type === 'done') {
             if (evt.emotion) cb.onEmotion?.(evt.emotion);
@@ -133,6 +146,7 @@ export interface JsonResult {
   answer: string;
   emotion: Emotion;
   sessionId: string;
+  citations?: Citation[];
 }
 
 /** JSON 一次性回退 */
@@ -156,6 +170,7 @@ export async function sendChatJson(params: ChatParams, signal?: AbortSignal): Pr
       answer: data?.answer || '',
       emotion: (data?.emotion || 'neutral') as Emotion,
       sessionId: data?.sessionId || '',
+      citations: Array.isArray(data?.citations) ? (data.citations as Citation[]) : [],
     };
   } catch (e) {
     if (signal?.aborted) throw e;
