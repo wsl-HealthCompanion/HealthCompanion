@@ -143,6 +143,7 @@ export default function App() {
   const [subtitle, setSubtitle] = useState(() => getGreeting(loadProfile()));
   const [subtitleRole, setSubtitleRole] = useState<'user' | 'assistant'>('assistant');
   const [status, setStatus] = useState<DhStatus>('idle');
+  const [streamText, setStreamText] = useState('');
   const [emotion, setEmotion] = useState<Emotion>('neutral');
   const [audioEnabled, setAudioEnabled] = useState(false);
   const handleUnlockAudio = useCallback(() => setAudioEnabled(true), []);
@@ -204,46 +205,6 @@ export default function App() {
     return () => { active = false; };
   }, [loggedIn, appKey]);
 
-  // 切换会话 → 加载历史消息
-  const switchSession = useCallback(async (sid: string) => {
-    setCurrentSessionId(sid);
-    localStorage.setItem(`yhzk_last_session_${getUid()}`, sid); // 记住当前会话
-    setShowSessions(false);
-    setMessages([]);
-    const msgs = await fetchMessages(sid);
-    setMessages(msgs.map((m: MessageItem, i: number) => ({
-      id: m.id || `m_${i}`,
-      role: m.role as 'user' | 'assistant',
-      content: m.content,
-    })));
-    // 切到对话Tab
-    setActiveTab('chat');
-  }, []);
-
-  // 新建会话
-  const newSession = useCallback(() => {
-    setCurrentSessionId('');
-    setSessionId('');
-    setMessages([]);
-    setSubtitle(getGreeting(profile));
-    setSubtitleRole('assistant');
-    setStatus('idle');
-    setShowSessions(false);
-    setActiveTab('dh');
-    loadSessions(); // 刷新会话列表
-  }, [loadSessions]);
-
-  // 建档完成回调
-  const handleOnboardingComplete = useCallback((p: PresetProfile) => {
-    setProfile(p);
-    saveProfile(p);
-    setObDone();
-    setOnboardingDone(true);
-    saveProfileToBackend(p.profileData);
-    setSubtitle(getGreeting(p)); // 建档后更新欢迎语
-    setActiveTab('profile');
-  }, []);
-
   const isBusy = status !== 'idle';
   const contentRef = useRef('');
   const statusRef = useRef<DhStatus>('idle');
@@ -262,6 +223,23 @@ export default function App() {
     subtitleTimersRef.current = [];
   }, []);
 
+  // 流式文本按帧刷新，避免每个 token 都触发一次重渲染
+  const streamFlushRef = useRef<number | null>(null);
+  const scheduleStreamFlush = useCallback(() => {
+    if (streamFlushRef.current !== null) return;
+    streamFlushRef.current = requestAnimationFrame(() => {
+      streamFlushRef.current = null;
+      setStreamText(contentRef.current);
+    });
+  }, []);
+  const cancelStreamFlush = useCallback(() => {
+    if (streamFlushRef.current !== null) {
+      cancelAnimationFrame(streamFlushRef.current);
+      streamFlushRef.current = null;
+    }
+    setStreamText('');
+  }, []);
+
   const cancelActiveConversation = useCallback(() => {
     conversationGenerationRef.current += 1;
     conversationAbortRef.current?.abort();
@@ -269,8 +247,57 @@ export default function App() {
     if (subtitlePollerRef.current) clearInterval(subtitlePollerRef.current);
     subtitlePollerRef.current = null;
     clearSubtitleTimers();
+    cancelStreamFlush();
     if (useXmovAvatar) void xmovAvatar.interrupt();
-  }, [clearSubtitleTimers, useXmovAvatar]);
+  }, [clearSubtitleTimers, cancelStreamFlush, useXmovAvatar]);
+
+  // 切换会话 → 加载历史消息
+  const switchSession = useCallback(async (sid: string) => {
+    cancelActiveConversation();
+    setCurrentSessionId(sid);
+    localStorage.setItem(`yhzk_last_session_${getUid()}`, sid); // 记住当前会话
+    setShowSessions(false);
+    setMessages([]);
+    setStatus('idle');
+    const generation = conversationGenerationRef.current;
+    const msgs = await fetchMessages(sid);
+    if (conversationGenerationRef.current !== generation) {
+      // 历史加载期间用户已开启新一轮，不覆盖新一轮的消息
+      return;
+    }
+    setMessages(msgs.map((m: MessageItem, i: number) => ({
+      id: m.id || `m_${i}`,
+      role: m.role as 'user' | 'assistant',
+      content: m.content,
+    })));
+    // 切到对话Tab
+    setActiveTab('chat');
+  }, [cancelActiveConversation]);
+
+  // 新建会话
+  const newSession = useCallback(() => {
+    cancelActiveConversation();
+    setCurrentSessionId('');
+    setSessionId('');
+    setMessages([]);
+    setSubtitle(getGreeting(profile));
+    setSubtitleRole('assistant');
+    setStatus('idle');
+    setShowSessions(false);
+    setActiveTab('dh');
+    loadSessions(); // 刷新会话列表
+  }, [loadSessions, cancelActiveConversation]);
+
+  // 建档完成回调
+  const handleOnboardingComplete = useCallback((p: PresetProfile) => {
+    setProfile(p);
+    saveProfile(p);
+    setObDone();
+    setOnboardingDone(true);
+    saveProfileToBackend(p.profileData);
+    setSubtitle(getGreeting(p)); // 建档后更新欢迎语
+    setActiveTab('profile');
+  }, []);
 
   // 进页面即连接数字人。TTS 预热由 LiveTalking 进程统一执行，
   // 避免每个页面重复合成“嗯”并与用户的首次回答竞争。
@@ -438,6 +465,7 @@ export default function App() {
       if (!isCurrentConversation()) return;
       contentRef.current += char;
       if (statusRef.current !== 'speaking') setStatus('speaking');
+      scheduleStreamFlush();
     };
 
     const feedFallbackSpeechChar = (char: string) => {
@@ -495,6 +523,7 @@ export default function App() {
         }
         setStatus('speaking');
         contentRef.current += json.answer;
+        setStreamText(contentRef.current);
         for (const chunk of splitSpokenText(json.answer)) {
           if (!isCurrentConversation()) return;
           enqueueSpeech(chunk, nextSubtitleIdx++);
@@ -518,6 +547,7 @@ export default function App() {
     if (useXmovAvatar) xmovAvatar.finishRound(roundId);
 
     const finalContent = contentRef.current || '抱歉，我暂时无法回答，请稍后再试。';
+    cancelStreamFlush();
     setMessages(prev => [...prev, { id: `a_${Date.now()}`, role: 'assistant', content: finalContent }]);
     setTimeout(() => {
       if (conversationGenerationRef.current === conversationGeneration) setStatus('idle');
@@ -755,12 +785,18 @@ export default function App() {
                 </div>
               )})
             )}
-            {status === 'thinking' && (
+            {status === 'thinking' && !streamText && (
               <div className="msg-row assistant">
                 <div className="msg-avatar">AI</div>
                 <div className="msg-bubble thinking">
                   <i /><i /><i />
                 </div>
+              </div>
+            )}
+            {streamText && (
+              <div className="msg-row assistant">
+                <div className="msg-avatar">AI</div>
+                <div className="msg-bubble">{cleanMd(streamText)}</div>
               </div>
             )}
             <div ref={messagesEndRef} />
