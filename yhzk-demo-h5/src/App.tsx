@@ -1,7 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import DigitalHumanPlayer from './components/DigitalHumanPlayer';
-import XmovAvatarPlayer from './components/XmovAvatarPlayer';
-import { AVATAR_PROVIDER } from './avatar/xmovConfig';
 import PresetQuestions from './components/PresetQuestions';
 import InputBar from './components/InputBar';
 import ProfileCard from './components/ProfileCard';
@@ -136,7 +134,6 @@ function loadUserModes(): { isElderly: boolean; careMode: boolean } {
 }
 
 export default function App() {
-  const useXmovAvatar = AVATAR_PROVIDER === 'xmov';
   const [onboardingDone, setOnboardingDone] = useState(obDone);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [subtitle, setSubtitle] = useState(() => getGreeting(loadProfile()));
@@ -283,14 +280,6 @@ export default function App() {
   }, [userModes]);
 
   useEffect(() => {
-    // Task 1: XmovAvatar owns the visual runtime. Keep the legacy LiveTalking
-    // session fully disabled in xmov mode so both engines never compete.
-    if (useXmovAvatar) {
-      digitalHuman.invalidate();
-      setDigitalHumanStreamUrl(null);
-      return;
-    }
-
     const unsubscribe = digitalHuman.subscribe((session) => {
       setDigitalHumanStreamUrl(session?.streamUrl ?? null);
     });
@@ -314,7 +303,7 @@ export default function App() {
       setDigitalHumanStreamUrl(null);
       void digitalHuman.disconnect();
     };
-  }, [loggedIn, onboardingDone, useXmovAvatar]);
+  }, [loggedIn, onboardingDone]);
 
   // 新消息自动滚到底部（只在新增消息时，不在 token 流式更新时）
   useEffect(() => {
@@ -333,18 +322,14 @@ export default function App() {
     const conversationAbort = new AbortController();
     const conversationGeneration = ++conversationGenerationRef.current;
     conversationAbortRef.current = conversationAbort;
-    // Xmov speech streaming is wired in Task 2. During Task 1 we deliberately
-    // avoid creating a LiveTalking session while the Xmov runtime is selected.
-    let digitalHumanCapability = useXmovAvatar ? null : digitalHuman.capture();
+    let digitalHumanCapability = digitalHuman.capture();
     const isCurrentConversation = () => !conversationAbort.signal.aborted
       && conversationGenerationRef.current === conversationGeneration;
-    const digitalHumanCapabilityReady = useXmovAvatar
-      ? Promise.resolve(null)
-      : digitalHumanCapability
-        ? Promise.resolve(digitalHumanCapability)
-        : digitalHuman.connect()
-            .then(() => isCurrentConversation() ? digitalHuman.capture() : null)
-            .catch(() => null);
+    const digitalHumanCapabilityReady = digitalHumanCapability
+      ? Promise.resolve(digitalHumanCapability)
+      : digitalHuman.connect()
+          .then(() => isCurrentConversation() ? digitalHuman.capture() : null)
+          .catch(() => null);
 
     lastMsgRef.current = msg; // 保存用于重试
     setAudioEnabled(true);
@@ -504,7 +489,7 @@ export default function App() {
       if (conversationGenerationRef.current === conversationGeneration) setStatus('idle');
     }, 1500);
     if (conversationAbortRef.current === conversationAbort) conversationAbortRef.current = null;
-  }, [isBusy, currentSessionId, sessionId, profile, useXmovAvatar]);
+  }, [isBusy, currentSessionId, sessionId, profile]);
 
   const handleProfileSave = useCallback((p: PresetProfile) => {
     setProfile(p);
@@ -650,19 +635,15 @@ export default function App() {
       <main className={`app-main ${activeTab === 'dh' ? 'tab-dh' : activeTab === 'chat' ? 'tab-chat active' : 'tab-profile'}`}>
         {/* 左侧：数字人舞台 */}
         <div className="stage">
-          {useXmovAvatar ? (
-            <XmovAvatarPlayer />
-          ) : (
-            <DigitalHumanPlayer
-              streamUrl={digitalHumanStreamUrl}
-              status={status}
-              emotion={emotion}
-              audioEnabled={audioEnabled}
-              onUnlockAudio={handleUnlockAudio}
-              subtitle={subtitle}
-              subtitleRole={subtitleRole}
-            />
-          )}
+          <DigitalHumanPlayer
+            streamUrl={digitalHumanStreamUrl}
+            status={status}
+            emotion={emotion}
+            audioEnabled={audioEnabled}
+            onUnlockAudio={handleUnlockAudio}
+            subtitle={subtitle}
+            subtitleRole={subtitleRole}
+          />
         </div>
 
         {/* 右侧：对话历史 / 我的页面 */}
