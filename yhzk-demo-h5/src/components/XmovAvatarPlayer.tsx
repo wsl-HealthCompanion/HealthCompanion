@@ -105,7 +105,6 @@ export default function XmovAvatarPlayer({
         <div className="xmov-setup">
           <strong>XmovAvatar Task 1 已接入，等待本地凭据</strong>
           <span>在 yhzk-demo-h5/.env.local 配置 App ID / App Secret 后刷新页面。</span>
-          <code>VITE_AVATAR_PROVIDER=xmov</code>
           <code>VITE_XMOV_APP_ID=...</code>
           <code>VITE_XMOV_APP_SECRET=...</code>
         </div>
