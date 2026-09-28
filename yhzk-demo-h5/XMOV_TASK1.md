@@ -33,6 +33,8 @@ VITE_XMOV_AUTHORIZATION=888jn
 
 仓库根目录的 `.gitignore` 已忽略 `.env` 和 `.env.*`，仅保留 `.env.example`。
 
+> Task 1 仅用于本地验证。`VITE_*` 变量会进入浏览器构建产物，因此比赛正式部署前需要再次确认魔珐对 App Secret 的生产接入要求，不能把本地开发方式直接当作服务端保密方案。
+
 ## 启动
 
 ```bash
