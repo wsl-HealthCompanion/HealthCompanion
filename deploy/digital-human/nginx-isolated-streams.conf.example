@@ -1,0 +1,39 @@
+# Merge these locations into the existing HTTP server block.
+# Keep the existing SRS upstream/port if it differs from 8180.
+
+location = /_auth/digital-human-media {
+    internal;
+    proxy_pass http://127.0.0.1:4000/api/v1/digital-human/media/authorize;
+    proxy_pass_request_body off;
+    proxy_set_header Content-Length "";
+    proxy_set_header Cookie $http_cookie;
+    proxy_set_header X-Original-URI $request_uri;
+}
+
+# A longest-prefix location cannot be bypassed by an existing
+# `location ^~ /live/` block. NestJS authorizes only the exact implemented
+# `/live/dh_<streamKey>.flv` URI, so every other dynamic media variant fails
+# closed at the auth subrequest.
+location ^~ /live/dh_ {
+    auth_request /_auth/digital-human-media;
+    proxy_pass http://127.0.0.1:8180;
+    proxy_http_version 1.1;
+    proxy_buffering off;
+    proxy_cache off;
+    proxy_read_timeout 3600s;
+}
+
+# These rules must appear before the general /dh/ proxy.
+location ^~ /dh/api/internal/ {
+    return 404;
+}
+
+location ^~ /dh/api/admin/ {
+    return 404;
+}
+
+location /dh/ {
+    proxy_pass http://127.0.0.1:8010/;
+    proxy_http_version 1.1;
+    proxy_buffering off;
+}

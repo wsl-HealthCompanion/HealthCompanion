@@ -1,0 +1,44 @@
+# dependencies & build outputs
+node_modules/
+dist/
+build/
+.vite/
+coverage/
+
+# env & secrets (keep example only)
+.env
+.env.*
+!.env.example
+
+# archives & model weights (not for git)
+*.tar.gz
+*.zip
+*.tgz
+*.tar
+*.onnx
+*.pth
+*.pt
+*.ckpt
+*.safetensors
+
+# third-party engine & model dirs (open-source upstreams, too large)
+LiveTalking-main/
+TTS/
+back/
+deploy-backup/
+backups/
+.claude/
+.tmp-test/
+
+# runtime & misc
+*.log
+logs/
+__pycache__/
+*.pyc
+.venv/
+venv/
+.DS_Store
+*.swp
+
+# JWT key material (RS256)
+*.pem
