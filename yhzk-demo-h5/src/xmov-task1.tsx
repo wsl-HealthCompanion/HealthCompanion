@@ -14,7 +14,7 @@ function XmovTask1Page() {
         </p>
       </section>
       <section className="xmov-task1-stage">
-        <XmovAvatarPlayer />
+        <XmovAvatarPlayer showDevControls />
       </section>
     </main>
   );
