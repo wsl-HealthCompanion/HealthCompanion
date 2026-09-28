@@ -25,6 +25,35 @@ def fallback_intent_recognition(user_message: str) -> dict:
             "should_alert": True,
         }
 
+    # 工具执行请求 (Task 5) — 必须在健康关键词之前判定。
+    # 严格模式：必须是"动作动词 + 明确宾语"，避免把健康知识提问误判为工具调用
+    import re as _re
+    action_patterns = [
+        r"(生成|制定|做个|做一份|做一份|安排|来一份|设计|写一份|写个).{0,8}(饮食|食谱|餐单|计划|方案)",
+        r"(根据|按照|按).{0,6}(档案|病情|忌口).{0,8}(调整|修改|定制|个性化|制定)",
+        r"(设置|创建|添加|定个|设个|定一个|设一个).{0,4}提醒",
+        r"提醒我",
+        r"(查看|读取|看看|打开|展示).{0,4}(我的)?(健康)?档案",
+        r"我的档案里?(有|是)什么",
+        r"我有什么病",
+        r"我在吃什么药",
+    ]
+    # 提醒类必须带时间语义，否则交给 LLM 追问（避免"帮我定个提醒"误触发）
+    has_time_hint = bool(_re.search(r"(今天|明天|后天|每天|每周|早上|上午|中午|下午|晚上|点|时|分)", msg))
+    action_hit = bool(msg) and any(_re.search(p, msg) for p in action_patterns)
+    if action_hit and ("提醒" in msg and not has_time_hint):
+        action_hit = False
+    if action_hit:
+        return {
+            "intent": "tool_request",
+            "confidence": 0.8,
+            "routing": [],
+            "query_for_agents": user_message,
+            "final_reply": "",
+            "emotion_detected": "neutral",
+            "should_alert": False,
+        }
+
     # 健康知识关键词
     health_keywords = [
         "血压", "血糖", "糖尿病", "高血压", "冠心病", "吃药", "用药", "药物",

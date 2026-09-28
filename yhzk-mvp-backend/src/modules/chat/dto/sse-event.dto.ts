@@ -11,6 +11,8 @@ export type SSEEventType =
   | 'audio'
   | 'visemes'
   | 'citation'
+  | 'tool_call'
+  | 'tool_result'
   | 'quick_replies'
   | 'done'
   | 'error';
@@ -63,6 +65,25 @@ export interface SSECitationEvent extends SSEEvent {
   publisher?: string;
   text: string;
   chunk_id?: string;
+}
+
+/** Task 5：工具调用申请（NestJS 注册并执行，模型只能申请） */
+export interface SSEToolCallEvent extends SSEEvent {
+  type: 'tool_call';
+  tool: string;
+  arguments: Record<string, any>;
+}
+
+/** Task 5：工具执行结果（ok=false 表示失败，绝不伪装成功） */
+export interface SSEToolResultEvent extends SSEEvent {
+  type: 'tool_result';
+  tool: string;
+  ok: boolean;
+  summary: string;
+  data?: Record<string, any>;
+  error?: string;
+  /** 参数校验失败时的字段级错误 */
+  validationErrors?: string[];
 }
 
 export interface SSEQuickRepliesEvent extends SSEEvent {

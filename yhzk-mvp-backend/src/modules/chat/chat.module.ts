@@ -22,6 +22,10 @@ import { EmbeddingService } from './rag/embedding.service';
 // TTS
 import { TTSService } from './tts/tts.service';
 
+// Tools (Task 5 — Tool Calling)
+import { ToolsRegistry } from './tools/tools.registry';
+import { ToolPlannerService } from './tools/tool-planner.service';
+
 // Config
 import { AgentsConfig } from '../../config/agents.config';
 import { MilvusConfig } from '../../config/milvus.config';
@@ -46,7 +50,10 @@ import { MilvusConfig } from '../../config/milvus.config';
     EmbeddingService,
     // TTS
     TTSService,
+    // Tools (Task 5)
+    ToolsRegistry,
+    ToolPlannerService,
   ],
-  exports: [ChatService, RagService, EmbeddingService, MilvusConfig],
+  exports: [ChatService, RagService, EmbeddingService, MilvusConfig, ToolsRegistry, ToolPlannerService],
 })
 export class ChatModule {}

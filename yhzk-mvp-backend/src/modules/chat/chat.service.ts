@@ -17,6 +17,10 @@ import { redisConfig, RedisKeys, RedisTTL } from '../../config/redis.config';
 import { ErrorCode } from '../../common/filters/all-exceptions.filter';
 import { HealthProfile } from '../onboarding/health-profile.entity';
 import { User, UserStatus } from '../auth/entities/user.entity';
+import { ToolsRegistry } from './tools/tools.registry';
+import { ToolPlannerService } from './tools/tool-planner.service';
+import { ToolExecutionResult } from './tools/tool.types';
+import { SpeechChunker } from './tools/speech-chunk';
 import {
   SSEEvent,
   SSEThinkingEvent,
@@ -25,6 +29,9 @@ import {
   SSEAudioEvent,
   SSEVisemesEvent,
   SSECitationEvent,
+  SSEToolCallEvent,
+  SSEToolResultEvent,
+  SSESpeechChunkEvent,
   SSEQuickRepliesEvent,
   SSEDoneEvent,
   SSEErrorEvent,
@@ -55,6 +62,8 @@ export class ChatService {
     private readonly ttsService: TTSService,
     private readonly configService: ConfigService,
     private readonly aiClient: AiClientService,
+    private readonly toolsRegistry: ToolsRegistry,
+    private readonly toolPlanner: ToolPlannerService,
     @InjectEntityManager()
     private readonly entityManager: EntityManager,
   ) {
@@ -120,7 +129,7 @@ export class ChatService {
 
       if (pythonHealthy) {
         this.logger.log(`User ${userId} routed to Python AI`);
-        yield* this.processPythonAI(userId, session, message, messageType, userContext, history);
+        yield* this.processPythonAI(userId, session, message, messageType, userContext, history, frontendProfile);
         return;
       } else {
         this.logger.warn(`Python AI unhealthy, falling back to legacy for user ${userId}`);
@@ -698,6 +707,7 @@ export class ChatService {
     messageType: 'text' | 'quick_reply',
     userContext: UserContext,
     history: Message[],
+    frontendProfile?: Record<string, any>,
   ): AsyncGenerator<SSEEvent> {
     const now = () => Date.now();
     let accumulatedReply = '';
@@ -756,6 +766,15 @@ export class ChatService {
         if (event.type !== 'done') {
           yield event;
         }
+      }
+
+      // Task 5：工具调用分流 —
+      // Python orchestrator 判定为行动请求(tool_request) 且未产生回答文本时，
+      // 走 NestJS 工具路径（工具注册/调用/结果回传全部在服务端，模型不能伪造结果）。
+      if (lastIntent === 'tool_request' && !accumulatedReply.trim()) {
+        this.logger.log(`User ${userId} routed to tool action path`);
+        yield* this.runToolAction(userId, session, message, userContext, history, frontendProfile);
+        return;
       }
 
       // 补充TTS + Viseme (Python不做,NestJS补)
@@ -838,5 +857,206 @@ export class ChatService {
 
       yield* this.faqMode(message);
     }
+  }
+
+  // ============================================================
+  // Task 5 — Tool Calling（NestJS 注册/执行/回传）
+  // ============================================================
+
+  /**
+   * 读取用户健康档案（工具的服务端可信数据源）
+   */
+  private async loadProfileData(
+    userId: string,
+    frontendProfile?: Record<string, any>,
+  ): Promise<Record<string, any> | null> {
+    if (frontendProfile && Object.keys(frontendProfile).length > 0) {
+      return frontendProfile;
+    }
+    try {
+      const rows: any[] = await this.entityManager.query(
+        `SELECT profile_data FROM health_profiles WHERE user_id = $1 LIMIT 1`,
+        [userId],
+      );
+      if (rows?.length > 0 && rows[0].profile_data) {
+        return typeof rows[0].profile_data === 'string'
+          ? JSON.parse(rows[0].profile_data)
+          : rows[0].profile_data;
+      }
+    } catch (e) {
+      this.logger.warn(`loadProfileData failed: ${e}`);
+    }
+    return null;
+  }
+
+  /**
+   * 工具行动路径：
+   * 1. Qwen function calling 决策（模型只能申请调用）
+   * 2. NestJS 注册表校验参数并执行（真实写入/生成）
+   * 3. SSE 回传 tool_call / tool_result，再用工具结果生成口语回答
+   * 失败一律诚实说明（ok=false），绝不假装执行成功
+   */
+  private async *runToolAction(
+    userId: string,
+    session: ChatSession,
+    message: string,
+    userContext: UserContext,
+    history: Message[],
+    frontendProfile?: Record<string, any>,
+  ): AsyncGenerator<SSEEvent> {
+    const now = () => Date.now();
+    const chunker = new SpeechChunker();
+    let tokenIndex = 0;
+    let speechIndex = 0;
+    let finalText = '';
+    let toolResult: ToolExecutionResult | null = null;
+
+    const emitText = function* (
+      this: void,
+      text: string,
+    ): Generator<SSEEvent, void, unknown> {
+      for (const ch of text) {
+        yield {
+          type: 'token',
+          content: ch,
+          index: tokenIndex++,
+          timestamp: now(),
+        } as SSETokenEvent;
+        for (const piece of chunker.push(ch)) {
+          yield {
+            type: 'speech_chunk',
+            text: piece,
+            index: speechIndex++,
+            timestamp: now(),
+          } as SSESpeechChunkEvent;
+        }
+      }
+    };
+
+    try {
+      const profile = await this.loadProfileData(userId, frontendProfile);
+      const decision = await this.toolPlanner.decide(
+        message,
+        history,
+        userContext.profile_summary,
+        profile,
+      );
+
+      if (decision.kind === 'answer') {
+        // 模型选择直接回答（例如提醒缺少时间需要反问用户）— 普通流式回答
+        finalText += decision.text;
+        yield* emitText(decision.text);
+      } else if (decision.kind === 'tool') {
+        yield {
+          type: 'tool_call',
+          tool: decision.call.tool,
+          arguments: decision.call.arguments,
+          timestamp: now(),
+        } as SSEToolCallEvent;
+
+        toolResult = await this.toolsRegistry.execute(
+          decision.call.tool,
+          decision.call.arguments,
+          { userId, profile },
+        );
+
+        yield {
+          type: 'tool_result',
+          tool: toolResult.tool,
+          ok: toolResult.ok,
+          summary: toolResult.summary,
+          data: toolResult.data,
+          error: toolResult.error,
+          validationErrors: toolResult.validationErrors,
+          timestamp: now(),
+        } as SSEToolResultEvent;
+
+        for await (const delta of this.toolPlanner.verbalize(message, history, toolResult)) {
+          finalText += delta;
+          yield* emitText(delta);
+        }
+      } else {
+        // 无可用决策：不执行任何工具，诚实说明
+        const text =
+          '抱歉，我暂时没能理解这个请求。你可以换个说法，比如"帮我制定七天低盐饮食计划"。';
+        finalText += text;
+        yield* emitText(text);
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      this.logger.error(`Tool action failed: ${msg}`);
+      const honest = '抱歉，这个操作暂时没有完成，请稍后再试。';
+      finalText += finalText ? '' : honest;
+      if (!finalText.trim()) {
+        finalText = honest;
+      }
+      yield* emitText(honest);
+    }
+
+    for (const piece of chunker.flush()) {
+      yield {
+        type: 'speech_chunk',
+        text: piece,
+        index: speechIndex++,
+        timestamp: now(),
+      } as SSESpeechChunkEvent;
+    }
+
+    // TTS + Viseme（与其他路径一致）
+    let audioUrl: string | null = null;
+    let visemeTimeline: any[] = [];
+    if (finalText.trim()) {
+      try {
+        const ttsResult = await this.ttsService.synthesize(finalText);
+        audioUrl = ttsResult.audioUrl;
+        visemeTimeline = ttsResult.visemeTimeline;
+        yield {
+          type: 'audio',
+          url: audioUrl,
+          duration: ttsResult.durationSec,
+          timestamp: now(),
+        } as SSEAudioEvent;
+        yield {
+          type: 'visemes',
+          data: visemeTimeline,
+          timestamp: now(),
+        } as SSEVisemesEvent;
+      } catch (err) {
+        this.logger.warn(`TTS failed in tool flow: ${err}`);
+      }
+    }
+
+    // 保存 assistant 消息（工具轨迹存 meta，便于审计与前端展示）
+    const messageId = `msg_${now()}`;
+    await this.saveMessage({
+      session_id: session.session_id,
+      role: MessageRole.ASSISTANT,
+      content: finalText,
+      intent: 'tool_request',
+      tts_url: audioUrl,
+      viseme_data: visemeTimeline as any,
+      meta: {
+        tool: toolResult ? toolResult.tool : null,
+        tool_ok: toolResult ? toolResult.ok : null,
+        tool_summary: toolResult ? toolResult.summary : null,
+      } as any,
+    });
+
+    session.message_count += 1;
+    session.last_active = new Date();
+    await this.sessionRepo.save(session);
+
+    this.triggerMemorySummary(session, history).catch((e) =>
+      this.logger.warn(`Memory summary trigger failed: ${e}`),
+    );
+
+    yield {
+      type: 'done',
+      messageId,
+      sessionId: session.session_id,
+      emotion: 'neutral',
+      intent: 'tool_request',
+      timestamp: now(),
+    } as SSEDoneEvent;
   }
 }
