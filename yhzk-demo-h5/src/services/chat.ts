@@ -19,6 +19,8 @@ export interface ChatParams {
 
 export interface StreamCallbacks {
   onToken: (char: string) => void;
+  onThinking?: (content?: string) => void;
+  onIntent?: (intent: string, emotion?: Emotion) => void;
   onSpeechChunk?: (text: string, index: number) => void;
   onEmotion?: (e: Emotion) => void;
   onDone?: (sessionId?: string) => void;
@@ -67,8 +69,13 @@ export async function streamChat(
           const evt = JSON.parse(m[1]);
           sawEvent = true;
           if (evt.type === 'token') cb.onToken(evt.content || '');
+          else if (evt.type === 'thinking') cb.onThinking?.(evt.content || '');
           else if (evt.type === 'speech_chunk') cb.onSpeechChunk?.(evt.text || '', evt.index ?? 0);
-          else if (evt.type === 'intent' && evt.emotion) cb.onEmotion?.(evt.emotion);
+          else if (evt.type === 'intent') {
+            const emotion = evt.emotion as Emotion | undefined;
+            cb.onIntent?.(evt.primary || evt.intent || 'unknown', emotion);
+            if (emotion) cb.onEmotion?.(emotion);
+          }
           else if (evt.type === 'done') {
             if (evt.emotion) cb.onEmotion?.(evt.emotion);
             cb.onDone?.(evt.sessionId);
