@@ -40,16 +40,16 @@ VITE_XMOV_AUTHORIZATION=888jn
 ```bash
 cd yhzk-demo-h5
 npm install
-npm run dev
+npm run dev:xmov
 ```
 
 浏览器打开：
 
 ```text
-http://localhost:5173/xmov-task1.html
+https://localhost:5273/xmov-task1.html
 ```
 
-魔珐 JS SDK 的部分能力要求 `localhost` 或 HTTPS 环境，不建议通过普通 HTTP 的非 localhost 地址验证。
+项目的 Vite 开发服务器启用了本地 HTTPS，首次访问可能需要在浏览器中确认自签名证书。魔珐 JS SDK 的部分能力要求 `localhost` 或 HTTPS 环境，不建议通过普通 HTTP 的非 localhost 地址验证。
 
 ## 验收
 
