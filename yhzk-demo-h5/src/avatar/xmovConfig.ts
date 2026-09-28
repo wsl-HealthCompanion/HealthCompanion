@@ -17,8 +17,11 @@ export const XMOV_CONFIG = {
   showDevControls: readEnv('VITE_XMOV_SHOW_DEV_CONTROLS') === 'true',
 } as const;
 
+const configuredProvider = readEnv('VITE_AVATAR_PROVIDER');
+
 export const AVATAR_PROVIDER =
-  (readEnv('VITE_AVATAR_PROVIDER') || 'livetalking').toLowerCase();
+  (configuredProvider || (XMOV_CONFIG.appId && XMOV_CONFIG.appSecret ? 'xmov' : 'livetalking'))
+    .toLowerCase();
 
 export function hasXmovCredentials(): boolean {
   return Boolean(XMOV_CONFIG.appId && XMOV_CONFIG.appSecret);
