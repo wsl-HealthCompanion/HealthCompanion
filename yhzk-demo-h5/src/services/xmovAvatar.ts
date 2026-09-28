@@ -55,23 +55,30 @@ class XmovAvatarBridge {
   async interruptAndBegin(roundId: string): Promise<void> {
     const provider = this.provider;
     this.beginRound(roundId);
-    if (!provider || !this.ready) return;
-    try {
-      await provider.interrupt();
-    } catch {
-      // A stale speaking state must not block the next AI round.
-    }
+    const round = this.round;
+    if (!provider || !this.ready || !round) return;
+
+    const generation = round.generation;
+    this.queue = Promise.resolve()
+      .then(async () => {
+        if (generation !== this.generation || this.provider !== provider || !this.ready) return;
+        await provider.interrupt();
+      })
+      .catch(() => {
+        // A stale speaking state must not block the next AI round.
+      });
+
+    await this.queue;
   }
 
   async think(roundId: string): Promise<void> {
     const round = this.round;
-    const provider = this.provider;
-    if (!provider || !this.ready || !round || round.id !== roundId || round.closed) return;
-    try {
+    if (!round || round.id !== roundId || round.closed) return;
+
+    const generation = round.generation;
+    this.enqueue(generation, async (provider) => {
       await provider.think();
-    } catch {
-      // The text chat path remains usable even if an avatar state transition fails.
-    }
+    });
   }
 
   setIntent(roundId: string, intent?: string, emotion?: string): void {
