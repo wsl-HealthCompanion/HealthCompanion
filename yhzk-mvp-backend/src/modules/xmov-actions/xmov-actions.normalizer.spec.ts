@@ -94,3 +94,66 @@ describe('normalizeXmovActions', () => {
     }]);
   });
 });
+
+function captureNormalizationError(fn: () => unknown): Error {
+  try {
+    fn();
+  } catch (error) {
+    return error as Error;
+  }
+
+  throw new Error('expected normalizeXmovActions to throw');
+}
+
+describe('normalizeXmovActions malformed payload diagnostics', () => {
+  it('rejects null data with a normalization error', () => {
+    const error = captureNormalizationError(() => normalizeXmovActions({
+      error_code: 0,
+      data: null,
+    }));
+
+    expect(error.constructor.name).toBe('XmovActionsNormalizationError');
+    expect(error.message).toMatch(/data/i);
+  });
+
+  it('rejects non-object array entries and reports the item index', () => {
+    const error = captureNormalizationError(() => normalizeXmovActions({
+      error_code: 0,
+      data: ['not-an-object'],
+    }));
+
+    expect(error.constructor.name).toBe('XmovActionsNormalizationError');
+    expect(error.message).toMatch(/index 0/i);
+  });
+
+  it('rejects an empty action name and reports the item index', () => {
+    const error = captureNormalizationError(() => normalizeXmovActions({
+      error_code: 0,
+      data: [{ name: '' }],
+    }));
+
+    expect(error.constructor.name).toBe('XmovActionsNormalizationError');
+    expect(error.message).toMatch(/index 0/i);
+  });
+
+  it('rejects an action name whose semantic segment is empty', () => {
+    const error = captureNormalizationError(() => normalizeXmovActions({
+      error_code: 0,
+      data: [{ name: 'prefix__' }],
+    }));
+
+    expect(error.constructor.name).toBe('XmovActionsNormalizationError');
+    expect(error.message).toMatch(/index 0/i);
+  });
+
+  it('rejects a single action object without a name', () => {
+    const error = captureNormalizationError(() => normalizeXmovActions({
+      error_code: 0,
+      data: { cn_name: '无名称动作' },
+    }));
+
+    expect(error.constructor.name).toBe('XmovActionsNormalizationError');
+    expect(error.message).toMatch(/name/i);
+  });
+});
+
