@@ -1,6 +1,6 @@
 # HealthCompanion Public Demo, README, Launcher, and Architecture Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Ship an isolated anonymous text-chat Demo build, a Windows one-command local launcher, accurate Chinese project documentation, and a current architecture diagram; publish an online URL only after HTTPS and end-to-end checks pass.
 
@@ -57,7 +57,7 @@
 - NestJS `parseTrustedProxyHops(value) -> false | number` defaults to `false`, accepts only a positive integer, and `main.ts` sets Express `trust proxy` from `TRUST_PROXY_HOPS`; local/normal environments remain unchanged unless explicitly configured.
 - Task 2 supplies `VITE_API_BASE=/api/v1` and Vite mode `demo`; production env behavior remains as-is.
 
-- [ ] **Step 1: Write tests for `demoIdentity`**
+- [x] **Step 1: Write tests for `demoIdentity`**
 
   Test stable reuse from one storage object, distinct tokens for separate tab storage objects, use of the Demo token even when a real auth token exists, production token selection, stable fallback when storage throws, Demo-scoped storage ids that never select a real user id, production login/onboarding gate decisions, and Demo's avatar-connect veto even when auth/onboarding flags are true.
 
@@ -65,7 +65,7 @@
 
   Also add NestJS tests for `TRUST_PROXY_HOPS`: unset returns `false`, `1` returns `1`, and zero/fractional/non-numeric values are rejected.
 
-- [ ] **Step 2: Run tests and verify they fail for the missing module/behavior**
+- [x] **Step 2: Run tests and verify they fail for the missing module/behavior**
 
   Run from `yhzk-demo-h5`: `node --experimental-strip-types --test tests/demoIdentity.test.mjs`
   Expected: FAIL because the new exports are not implemented.
@@ -73,13 +73,13 @@
   Run from `yhzk-mvp-backend`: `npm test -- --runInBand --runTestsByPath src/common/trusted-proxy.spec.ts`
   Expected: FAIL because the validated trust-hop parser is not implemented.
 
-- [ ] **Step 3: Implement Demo identity and entry behavior**
+- [x] **Step 3: Implement Demo identity and entry behavior**
 
   Add `DEMO_MODE` from `import.meta.env.MODE`; update chat and user request headers to use `getRequestToken`. In `App.tsx`, use `getStorageUserId` for all user-scoped localStorage keys, initialize Demo as unauthenticated, resolve entry through `resolveEntryScreen`, start on the text chat tab in Demo, still load Demo chat sessions, and gate both digital-human session setup and `handleSend` capability acquisition with `canConnectDigitalHuman`. This prevents LiveTalking connect/speak calls even when the browser had a stale logged-in user. Hide profile and logout actions in Demo so it stays text-chat scoped and cannot clear a stored production login. Add a visible Chinese privacy notice that chat is stored/sent for AI processing and that real health data must not be entered.
 
   Add the validated opt-in proxy-hop parser and set NestJS Express `trust proxy` from `TRUST_PROXY_HOPS`; do not enable proxy trust by default.
 
-- [ ] **Step 4: Run focused and complete H5 tests**
+- [x] **Step 4: Run focused and complete H5 tests**
 
   Run: `node --experimental-strip-types --test tests/demoIdentity.test.mjs`
   Expected: all identity and gate assertions pass.
@@ -90,7 +90,7 @@
   Run from `yhzk-mvp-backend`: `npm test -- --runInBand` and `npm run build`.
   Expected: all backend tests pass and NestJS compiles.
 
-- [ ] **Step 5: Commit Task 1**
+- [x] **Step 5: Commit Task 1**
 
   Commit only the Task 1 files with message `feat: add isolated anonymous demo entry`.
 
@@ -110,20 +110,20 @@
 - Produces `createDemoViteEnv(sourceEnv) -> NodeJS.ProcessEnv` for the demo Vite child; it removes inherited `VITE_*` values, then sets only `VITE_API_BASE=/api/v1`, `VITE_AVATAR_PROVIDER=livetalking`, and `VITE_XMOV_SHOW_DEV_CONTROLS=false`.
 - Produces H5 commands `npm run dev:demo` and `npm run build:demo`; both use mode `demo` and env directory `demo-env`.
 
-- [ ] **Step 1: Write tests for Demo env sanitization**
+- [x] **Step 1: Write tests for Demo env sanitization**
 
   Add tests that pass sentinel Xmov app id/secret, Xmov dev controls, and `VITE_AVATAR_PROVIDER=xmov` into `createDemoViteEnv`; assert that secrets/provider are absent, controls are false, and API base is `/api/v1`.
 
-- [ ] **Step 2: Run tests and verify the expected failure**
+- [x] **Step 2: Run tests and verify the expected failure**
 
   Run from `yhzk-demo-h5`: `node --test tests/demoBuild.test.mjs`
   Expected: FAIL because the sanitizer is missing.
 
-- [ ] **Step 3: Add isolated Demo Vite mode**
+- [x] **Step 3: Add isolated Demo Vite mode**
 
   Implement env sanitizer and CLI wrapper. Change Vite config to use `demo-env` only for mode `demo`, use `loadEnv` to read `DEMO_API_PROXY_TARGET`, bind the Demo dev server to `127.0.0.1:5273` without `basicSsl`, and keep existing HTTPS/basicSsl and proxy behavior for normal development/production builds. Add only non-secret `VITE_API_BASE=/api/v1` and `DEMO_API_PROXY_TARGET=http://127.0.0.1:3000` to `.env.demo`; allowlist this file through `.gitignore`.
 
-- [ ] **Step 4: Verify sanitization, builds, and browser artifact**
+- [x] **Step 4: Verify sanitization, builds, and browser artifact**
 
   Run: `node --test tests/demoBuild.test.mjs`
   Expected: all environment-sanitization assertions pass.
@@ -134,7 +134,7 @@
   Rebuild Demo with sentinel Xmov credentials in the parent environment, then scan `yhzk-demo-h5/dist` for both sentinel strings.
   Expected: neither sentinel appears in any browser asset.
 
-- [ ] **Step 5: Commit Task 2**
+- [x] **Step 5: Commit Task 2**
 
   Commit only the Task 2 files with message `build: isolate public demo environment`.
 
@@ -152,27 +152,27 @@
 - Nest child env sets `PORT=3000`, `DB_LIGHTWEIGHT=true`, `AI_BACKEND=python`, `AI_SERVICE_URL=http://127.0.0.1:8000`; AI uses `ai-service/.env` for optional credentials and its current fallback when keys are blank.
 - Launcher creates/uses `ai-service/.venv`, runs `npm ci` only when each package's dependencies are absent, installs `ai-service/requirements.txt` into the venv only when needed, checks all three ports before starting, waits for AI `/healthz`, NestJS `/api/v1/health`, and H5 HTTP readiness, opens `http://localhost:5273`, and on Ctrl+C stops only child processes it created.
 
-- [ ] **Step 1: Write tests for launcher preflight and child env**
+- [x] **Step 1: Write tests for launcher preflight and child env**
 
   Test runtime version rejection below the documented floors, rejection of occupied ports without killing the listener, and exact service env values/loopback bindings.
 
-- [ ] **Step 2: Run tests and verify the expected failure**
+- [x] **Step 2: Run tests and verify the expected failure**
 
   Run from repository root: `node --test scripts/start-demo.test.mjs`
   Expected: FAIL because the launcher helpers are missing.
 
-- [ ] **Step 3: Implement PowerShell entry and Node orchestrator**
+- [x] **Step 3: Implement PowerShell entry and Node orchestrator**
 
   Keep orchestration in Node for explicit child-process ownership and cleanup. Run package install only when the corresponding dependency tree is absent. Use loopback-only binds, stream service logs to the invoking terminal, stop children in a `finally`/signal handler, and ignore the generated SQLite database and launcher logs in `.gitignore`.
 
-- [ ] **Step 4: Verify launcher tests and real local startup/cleanup**
+- [x] **Step 4: Verify launcher tests and real local startup/cleanup**
 
   Run from repository root: `node --test scripts/start-demo.test.mjs`
   Expected: preflight and env tests pass.
 
   First occupy one required port and verify the launcher exits without stopping that listener. Then run `..\start-demo.ps1` from repository root, verify H5 returns HTTP 200, AI `/healthz` returns `status=ok`, NestJS `/api/v1/health` returns HTTP 200, press Ctrl+C, and verify all three launcher-owned child processes exit.
 
-- [ ] **Step 5: Commit Task 3**
+- [x] **Step 5: Commit Task 3**
 
   Commit only the Task 3 files with message `feat: add Windows local demo launcher`.
 
@@ -187,15 +187,15 @@
 - Produces a root Chinese project entry with local quick start, public Demo status/link only if the release gate passes, CI workflow summary, conditional RAG/citations, privacy disclosure, and external LiveTalking/TTS/SRS/model requirements.
 - Architecture diagram distinguishes public HTTPS deployment from Windows SQLite local mode and draws optional Milvus/RAG and authenticated-only LiveTalking paths.
 
-- [ ] **Step 1: Draft docs against implementation and existing CI**
+- [x] **Step 1: Draft docs against implementation and existing CI**
 
   Write the quick start using `.\start-demo.ps1`; make no unverified capability claims. State that chats are stored and forwarded to configured AI services, that no real health data should be entered, and that online Demo is pending until all HTTPS/API/chat gates pass.
 
-- [ ] **Step 2: Review links, commands, and Mermaid against repository files**
+- [x] **Step 2: Review links, commands, and Mermaid against repository files**
 
   Verify every README link resolves to a file or an actually validated URL, all command/port/env values match Tasks 1–3, and the architecture includes the actual H5 → NestJS → FastAPI → LLM path plus local SQLite.
 
-- [ ] **Step 3: Commit Task 4**
+- [x] **Step 3: Commit Task 4**
 
   Run `git diff --check`, inspect the Mermaid graph and README claims, then commit only documentation files with message `docs: add project readme and current architecture`.
 
@@ -209,18 +209,18 @@
 - A public release is valid only if `https://115.190.225.138.nip.io/` has a publicly trusted certificate, TCP 443 is reachable, H5 and `/api/v1` are same-origin, and a text chat completes.
 - Cloud firewall changes are out of scope. Do not alter an unidentified TLS listener or publish a URL if any release gate fails.
 
-- [ ] **Step 1: Recheck live host and public HTTPS read-only**
+- [x] **Step 1: Recheck live host and public HTTPS read-only**
 
   Use the registered `srvctl` full path to inspect the existing H5/API/TLS listener and an external HTTPS request to check certificate trust and TCP reachability.
 
-- [ ] **Step 2: Deploy only if an isolated vhost and valid certificate already exist**
+- [x] **Step 2: Deploy only if an isolated vhost and valid certificate already exist**
 
   Confirm the active Git commit matches this branch, the API supports the Demo token/auth path, an isolated Demo API/database is available, the Nginx proxy overwrites `X-Forwarded-For` with `$remote_addr`, and `TRUST_PROXY_HOPS=1` is applied only to that listener. If every release gate is satisfied without changing the cloud security group or replacing another service, publish the H5 and same-origin API route and run the text-chat smoke check. Otherwise leave deployment untouched and keep README explicitly marked “暂未开放在线体验”, with each failed prerequisite recorded.
 
-- [ ] **Step 3: Final whole-branch review and verification**
+- [x] **Step 3: Final whole-branch review and verification**
 
   Re-read the spec, run `git diff --check`; in `yhzk-demo-h5`, run `npm test`, `npm run build`, and `npm run build:demo`; in `yhzk-mvp-backend`, run `npm test -- --runInBand` and `npm run build`; in `ai-service`, run `python -m pytest -q` after installing the CI dev extra. Inspect the final diff for leaked sentinel secrets and untracked user files.
 
-- [ ] **Step 4: Commit any gate-status correction**
+- [x] **Step 4: Commit any gate-status correction**
 
   If Task 5 changed README status, commit only `README.md` as `docs: report public demo release gate`; otherwise make no extra commit.
