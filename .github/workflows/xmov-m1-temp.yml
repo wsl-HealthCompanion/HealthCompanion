@@ -1,0 +1,46 @@
+name: Xmov M1.3 Bootstrap Vitest
+
+on:
+  push:
+    branches:
+      - feat/xmov-m1-action-lab
+    paths:
+      - '.github/workflows/xmov-m1-temp.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: yhzk-demo-h5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: feat/xmov-m1-action-lab
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: yhzk-demo-h5/package-lock.json
+
+      - name: Install Vitest 2.1.9
+        run: npm install --save-dev vitest@2.1.9
+
+      - name: Add Action Lab test script
+        run: npm pkg set "scripts.test:xmov-action-lab=vitest run"
+
+      - name: Commit generated dependency files
+        working-directory: .
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add yhzk-demo-h5/package.json yhzk-demo-h5/package-lock.json
+          git diff --cached --quiet && exit 0
+          git commit -m "test(xmov): add Action Lab Vitest harness"
+          git push
