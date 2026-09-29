@@ -13,7 +13,7 @@
 
 ## 目标
 
-1. 提供可通过 HTTPS 访问的交互式文字对话公网 Demo，访客不会共用同一个演示身份。
+1. 提供可通过 HTTPS 访问、免手机号登录和建档的交互式文字对话公网 Demo，访客不会共用同一个演示身份；正式构建的登录流程不变。
 2. 在仓库根目录提供中文 README，准确说明如何体验、如何运行、依赖哪些外部服务，以及哪些能力默认关闭或不在仓库内。
 3. 提供 Windows PowerShell 一键本机启动入口，启动 H5、NestJS 与 AI 服务；使用 SQLite 轻量模式，不要求本机 Docker、模型权重或 Xmov 凭据。
 4. 更新系统架构图，使其区分本机开发链路与公网部署链路，并如实表达 RAG 是可选配置。
@@ -31,7 +31,8 @@
 ### 公网 Demo
 
 - 使用临时主机名 `115.190.225.138.nip.io`，同源反向代理 H5 与 `/api/v1`，避免 HTTP API 被 HTTPS 页面当作混合内容拦截。
-- H5 为每个浏览器会话生成高熵随机 `demo_` token 并保存在 `sessionStorage`，移除固定共享 token。服务端继续将 token 确定性映射为独立演示用户。NestJS 当前全局限流设置为每分钟 30 次；部署在反向代理后时，必须核实并正确配置访客 IP 识别，避免所有访客共用代理地址限额。
+- 独立 Vite `demo` 模式直接进入文字对话，不显示手机号登录和建档门禁；正式 `production` 模式保持原行为。
+- H5 为每个浏览器标签页生成高熵随机 `demo_` token 并保存在 `sessionStorage`，移除固定共享 token；在 `demo` 模式下 API 请求始终使用该 token，不借用浏览器中已有的正式登录 token。服务端继续将 token 确定性映射为独立演示用户。NestJS 当前全局限流设置为每分钟 30 次；部署在反向代理后时，必须核实并正确配置访客 IP 识别，避免所有访客共用代理地址限额。
 - 提供文字流式对话，数字人显示 H5 已有的静态回退形象，不开放匿名 LiveTalking/TTS 接口。H5 仅在正式登录并完成建档后连接 LiveTalking，后端 `RealUserGuard` 也拒绝演示身份。
 - 不设置 `VITE_XMOV_APP_ID` 或 `VITE_XMOV_APP_SECRET`。公开 H5 也不含 Xmov 开发控制入口。
 - 公网构建使用隔离的 Vite demo 环境目录，并在启动 Vite 子进程时移除 `VITE_XMOV_*` 变量，避免忽略的本机 `.env.local` 或父进程环境把 Xmov 凭据编入浏览器包。
@@ -40,7 +41,7 @@
 
 ### Windows 本机一键启动
 
-- 根目录脚本 `start-demo.ps1` 检查 Node.js 与 Python 版本，按需安装 H5/backend npm 依赖和 AI Python 开发依赖，然后启动三个服务并打开 H5。H5 使用与公网相同的隔离 Vite demo 模式，不读取本机 Xmov 环境变量。
+- 根目录脚本 `start-demo.ps1` 检查 Node.js 与 Python 版本，按需安装 H5/backend npm 依赖和 AI Python 开发依赖，然后启动三个服务并打开 H5。H5 使用与公网相同的隔离 Vite demo 模式，免登录、不读取本机 Xmov 环境变量。
 - H5 使用 `http://localhost:3000/api/v1`；NestJS 使用 `PORT=3000`、`DB_LIGHTWEIGHT=true`、`AI_BACKEND=python` 和 `AI_SERVICE_URL=http://127.0.0.1:8000`；Python AI 服务使用 8000 端口。
 - 数据写入 backend 的 SQLite 开发文件。密钥只从本地忽略文件或环境变量读取，不在脚本、README 或提交中放入凭据。
 - DeepSeek/DashScope Key 可选；为空时文档说明使用应用现有的降级路径。缺少 LiveTalking/模型权重时，本机显示 H5 已有的数字人回退画面。
@@ -49,7 +50,7 @@
 ### README 与架构图
 
 - 根 `README.md` 使用中文，作为 GitHub 项目入口。
-- 包含在线 Demo 状态/链接、文字对话与静态形象的能力边界、架构文档链接、Windows 快速开始、可选密钥配置、CI 检查、外部模型运行条件、RAG citation 启用条件及演示数据隐私提示。
+- 包含在线 Demo 状态/链接、免登录文字对话与静态形象的能力边界、架构文档链接、Windows 快速开始、可选密钥配置、CI 检查、外部模型运行条件、RAG citation 启用条件及演示数据隐私提示。
 - `系统架构图.md` 更新为当前 Mermaid 总览：浏览器/H5、Nginx、NestJS、Python AI、PostgreSQL/SQLite、Redis、可选 Milvus/RAG、服务端 LiveTalking/TTS/SRS 与外部 LLM。图中分别标出公网和本机路径。
 - 文档只宣传在当前分支和配置中可验证的行为，不将关闭的 RAG 或缺失的外部模型服务描述为默认可用。
 
@@ -76,7 +77,7 @@ graph LR
 
 ## 安全与运行说明
 
-- `demo_` token 只是演示身份隔离手段，不是正式身份认证；匿名接口仍依赖 NestJS 限流并应避免提交真实个人资料。
+- `demo_` token 只是演示身份隔离手段，不是正式身份认证；它只在独立 `demo` 构建中使用。匿名接口仍依赖 NestJS 限流并应避免提交真实个人资料。
 - 公网聊天文本会到达后端与所配置的 LLM 服务，并保存在后端会话库。README 必须直接写明。
 - `VITE_*` 会进入浏览器代码。公网构建严禁设置 Xmov Secret。
 - 公网 Demo 发布以从公网验证证书信任、443 可达、H5/API 同源和文字对话可用为完成条件。若 443 无法开放，README 不发布伪 HTTPS 链接，并记录待处理项。
@@ -85,7 +86,7 @@ graph LR
 
 1. README 给出可用的本机启动命令、必要运行版本、配置边界和当前 Demo 状态；没有虚构域名或未启用能力。
 2. `start-demo.ps1` 从仓库根目录可启动 H5、NestJS 与 Python AI，Ctrl+C 后可停止启动的本机服务；轻量模式不依赖 PostgreSQL/Redis/Milvus。
-3. 两个新的浏览器会话生成不同演示 token，H5 请求不再使用固定 `demo_h5_demo_fixed`；访客能看到勿输入真实健康资料的提示。
+3. 两个新的浏览器标签页生成不同演示 token；Demo 模式免登录/建档并始终使用演示 token，正式模式的登录/建档流程保持不变；访客能看到勿输入真实健康资料的提示。
 4. 公网产物不包含 Xmov 凭据；公网 Demo 的 H5 与 API 均使用 HTTPS 同源地址。
 5. 架构图反映当前代码；RAG 标注为配置启用，数字人模型服务标注为仓库外依赖。
 6. 公网 443、有效证书、AI 健康检查和 H5/API 交互均完成实际验收后，README 才将链接标为“在线体验”；页面明确此演示没有 LiveTalking 动画和语音。
