@@ -67,8 +67,10 @@ async function bootstrap() {
   }
 
   const port = process.env.PORT || 3000;
-  await app.listen(port);
-  console.log(`[YHZK-MVP] Server running on http://localhost:${port}`);
+  const host = process.env.HOST;
+  if (host) await app.listen(port, host);
+  else await app.listen(port);
+  console.log(`[YHZK-MVP] Server running on http://${host || 'localhost'}:${port}`);
   console.log(`[YHZK-MVP] API Docs: http://localhost:${port}/api/docs`);
 }
 

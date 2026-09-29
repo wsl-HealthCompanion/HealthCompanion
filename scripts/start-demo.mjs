@@ -43,6 +43,7 @@ export function createNestDemoEnv(env = process.env) {
   const next = {
     ...env,
     NODE_ENV: 'development',
+    HOST: DEMO_ENDPOINTS.nest.host,
     PORT: String(DEMO_ENDPOINTS.nest.port),
     DB_LIGHTWEIGHT: 'true',
     AI_BACKEND: 'python',

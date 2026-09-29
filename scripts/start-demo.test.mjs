@@ -48,6 +48,7 @@ test('pins the local service addresses and safe process environments', () => {
     DIGITAL_HUMAN_MEDIA_SECRET: 'inherited-secret-must-not-be-used',
   });
   assert.equal(nest.NODE_ENV, 'development');
+  assert.equal(nest.HOST, '127.0.0.1');
   assert.equal(nest.PORT, '3000');
   assert.equal(nest.DB_LIGHTWEIGHT, 'true');
   assert.equal(nest.AI_BACKEND, 'python');
