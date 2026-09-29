@@ -49,15 +49,16 @@
 - Modify: `yhzk-mvp-backend/src/main.ts`
 
 **Interfaces:**
-- Produces `getDemoToken(storage, createId) -> string`, `getRequestToken(mode, storage, authToken) -> string | null`, `getStorageUserId(mode, demoId, authenticatedUserId) -> string`, and `resolveEntryScreen(mode, loggedIn, onboardingDone) -> 'login' | 'onboarding' | 'app'`.
+- Produces `getDemoToken(storage, createId) -> string`, `getRequestToken(mode, storage, authToken) -> string | null`, `getStorageUserId(mode, demoId, authenticatedUserId) -> string`, `resolveEntryScreen(mode, loggedIn, onboardingDone) -> 'login' | 'onboarding' | 'app'`, and `canConnectDigitalHuman(mode, loggedIn, onboardingDone) -> boolean`.
 - `getRequestToken` returns `demo_<crypto.randomUUID()>` persisted in `sessionStorage` in Demo mode; if storage throws, it reuses a module-local token. Production returns only the real auth token and has no fixed demo-token fallback.
 - `resolveEntryScreen` skips gates only when mode is `demo`.
+- `canConnectDigitalHuman` is always false in Demo mode even if stale auth/onboarding state is present; use it for both session setup and the message send path so anonymous Demo cannot create a LiveTalking session or send TTS speech.
 - NestJS `parseTrustedProxyHops(value) -> false | number` defaults to `false`, accepts only a positive integer, and `main.ts` sets Express `trust proxy` from `TRUST_PROXY_HOPS`; local/normal environments remain unchanged unless explicitly configured.
 - Task 2 supplies `VITE_API_BASE=/api/v1` and Vite mode `demo`; production env behavior remains as-is.
 
 - [ ] **Step 1: Write tests for `demoIdentity`**
 
-  Test stable reuse from one storage object, distinct tokens for separate tab storage objects, use of the Demo token even when a real auth token exists, production token selection, stable fallback when storage throws, Demo-scoped storage ids that never select a real user id, and production login/onboarding gate decisions.
+  Test stable reuse from one storage object, distinct tokens for separate tab storage objects, use of the Demo token even when a real auth token exists, production token selection, stable fallback when storage throws, Demo-scoped storage ids that never select a real user id, production login/onboarding gate decisions, and Demo's avatar-connect veto even when auth/onboarding flags are true.
 
   Also add NestJS tests for `TRUST_PROXY_HOPS`: unset returns `false`, `1` returns `1`, and zero/fractional/non-numeric values are rejected.
 
@@ -71,7 +72,7 @@
 
 - [ ] **Step 3: Implement Demo identity and entry behavior**
 
-  Add `DEMO_MODE` from `import.meta.env.MODE`; update chat and user request headers to use `getRequestToken`. In `App.tsx`, use `getStorageUserId` for all user-scoped localStorage keys, initialize Demo as unauthenticated, resolve entry through `resolveEntryScreen`, still load Demo chat sessions, and preserve existing `loggedIn && onboardingDone` checks that prevent the avatar session from connecting. Add a visible Chinese privacy notice that chat is stored/sent for AI processing and that real health data must not be entered.
+  Add `DEMO_MODE` from `import.meta.env.MODE`; update chat and user request headers to use `getRequestToken`. In `App.tsx`, use `getStorageUserId` for all user-scoped localStorage keys, initialize Demo as unauthenticated, resolve entry through `resolveEntryScreen`, still load Demo chat sessions, and gate both digital-human session setup and `handleSend` capability acquisition with `canConnectDigitalHuman`. This prevents LiveTalking connect/speak calls even when the browser had a stale logged-in user. Hide the logout action in Demo so the visitor cannot clear a stored production login. Add a visible Chinese privacy notice that chat is stored/sent for AI processing and that real health data must not be entered.
 
   Add the validated opt-in proxy-hop parser and set NestJS Express `trust proxy` from `TRUST_PROXY_HOPS`; do not enable proxy trust by default.
 
