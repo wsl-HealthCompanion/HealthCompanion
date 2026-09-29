@@ -1,6 +1,7 @@
 import { MODULE_METADATA } from '@nestjs/common/constants';
 import { AppModule } from '../../app.module';
 import { XmovActionsClient } from './xmov-actions.client';
+import { XmovActionsController } from './xmov-actions.controller';
 import { XmovActionsModule } from './xmov-actions.module';
 import { XmovActionsService } from './xmov-actions.service';
 
@@ -26,5 +27,14 @@ describe('XmovActionsModule wiring', () => {
     expect(exports).toEqual(
       expect.arrayContaining([XmovActionsClient, XmovActionsService]),
     );
+  });
+
+  it('registers the stable actions controller', () => {
+    const controllers = Reflect.getMetadata(
+      MODULE_METADATA.CONTROLLERS,
+      XmovActionsModule,
+    ) as unknown[];
+
+    expect(controllers).toContain(XmovActionsController);
   });
 });
