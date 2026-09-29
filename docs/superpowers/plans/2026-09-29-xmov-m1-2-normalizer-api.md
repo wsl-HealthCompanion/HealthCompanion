@@ -20,7 +20,7 @@
 - `semantic` 取官方 `name` 最后一个 `__` 分段；例如 `M_CN03_show03__PointingSelf -> PointingSelf`。
 - `name` 使用提取后的可读英文动作名（与 `semantic` 相同）；`rawName` 保留官方完整 `name`。
 - `cn_name` 缺失时 `cnName = ''`；`ka_type` 缺失时 `type = 'unknown'`。
-- 空字符串/缺失的 `render_image_oss`、`render_movie_oss` 不生成 URL 字段。
+- 空字符串、纯空白或缺失的 `render_image_oss`、`render_movie_oss` 不生成 URL 字段；有效字符串先 `trim()`。
 - `data=[]` 合法返回 `{ actions: [] }`，绝不生成示例/fallback 动作。
 - Normalizer 只接受当前有证据的最小 payload 形态：动作数组，或单个包含有效 `name` 的动作对象；不猜测 `list/items/ka_list` 等未证实包装字段。
 - 无法提取有效动作名/semantic 时抛出可诊断 `XmovActionsNormalizationError`，不静默跳过、不伪造 semantic。
@@ -262,12 +262,23 @@ Assert controller returns exactly that stable object and does not add `error_cod
 
 - [ ] **Step 2: Write failing route/module metadata tests**
 
-Assert:
+Use `PATH_METADATA` / `METHOD_METADATA` from `@nestjs/common/constants` and `RequestMethod` from `@nestjs/common`.
 
-- class controller path metadata is `xmov`;
-- method GET path metadata is `actions`;
-- `XmovActionsModule` registers `XmovActionsController`;
-- existing AppModule registration test still passes.
+Assert exactly:
+
+```ts
+expect(Reflect.getMetadata(PATH_METADATA, XmovActionsController)).toBe('xmov');
+expect(Reflect.getMetadata(
+  PATH_METADATA,
+  XmovActionsController.prototype.listActions,
+)).toBe('actions');
+expect(Reflect.getMetadata(
+  METHOD_METADATA,
+  XmovActionsController.prototype.listActions,
+)).toBe(RequestMethod.GET);
+```
+
+Also assert `Reflect.getMetadata(MODULE_METADATA.CONTROLLERS, XmovActionsModule)` contains `XmovActionsController`, and the existing AppModule registration test still passes.
 
 - [ ] **Step 3: Run controller/module specs and confirm RED**
 
