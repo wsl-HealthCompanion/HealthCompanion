@@ -1,12 +1,12 @@
-name: Xmov M1.4 Provider Playback RED
+name: Xmov M1.4 Bridge Playback RED
 
 on:
   push:
     branches:
       - feat/xmov-m1-action-lab
     paths:
-      - 'yhzk-demo-h5/src/avatar/XmovAvatarProvider.playAction.spec.ts'
-      - 'yhzk-demo-h5/src/avatar/XmovAvatarProvider.ts'
+      - 'yhzk-demo-h5/src/services/xmovAvatar.playAction.spec.ts'
+      - 'yhzk-demo-h5/src/services/xmovAvatar.ts'
       - '.github/workflows/xmov-m1-temp.yml'
 
 permissions:
@@ -29,5 +29,5 @@ jobs:
           cache-dependency-path: yhzk-demo-h5/package-lock.json
       - name: Install dependencies
         run: npm ci
-      - name: Run provider KA playback spec
-        run: npx vitest run src/avatar/XmovAvatarProvider.playAction.spec.ts
+      - name: Run bridge KA playback spec
+        run: npx vitest run src/services/xmovAvatar.playAction.spec.ts
