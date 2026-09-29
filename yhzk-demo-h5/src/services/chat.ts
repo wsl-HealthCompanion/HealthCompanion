@@ -2,15 +2,21 @@
 // 聊天服务 — SSE 流式（浏览器 fetch + ReadableStream）+ JSON 回退
 // 浏览器里 SSE 走 HTTP 即可，无微信"必须 HTTPS"限制
 // ============================================================
-import { API_BASE, DEMO_TOKEN } from '../config';
+import { API_BASE, DEMO_MODE } from '../config';
 import { getToken } from './auth';
+import { getRequestToken } from './demoIdentity';
 import { dispatchChatEvent } from './chatEvents';
 import type { ChatCitation, Emotion } from '../types';
 
-const authHeaders = () => ({
-  'Content-Type': 'application/json',
-  Authorization: `Bearer ${getToken() || DEMO_TOKEN}`,
-});
+const authHeaders = () => {
+  let storage: Storage | null = null;
+  try { storage = globalThis.sessionStorage; } catch { /* use the in-memory Demo identity */ }
+  const token = getRequestToken(DEMO_MODE ? 'demo' : 'production', storage, getToken());
+  return {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+};
 
 export interface ChatParams {
   message: string;

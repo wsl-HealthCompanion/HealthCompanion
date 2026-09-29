@@ -5,9 +5,15 @@ import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
+import { parseTrustedProxyHops } from './common/trusted-proxy';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  app.getHttpAdapter().getInstance().set(
+    'trust proxy',
+    parseTrustedProxyHops(process.env.TRUST_PROXY_HOPS),
+  );
 
   // 全局前缀: /api/v1
   app.setGlobalPrefix('api/v1');

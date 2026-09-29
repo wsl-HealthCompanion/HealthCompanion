@@ -1,10 +1,16 @@
-import { API_BASE, DEMO_TOKEN } from '../config';
+import { API_BASE, DEMO_MODE } from '../config';
 import { getToken } from './auth';
+import { getRequestToken } from './demoIdentity';
 
-const authHeaders = () => ({
-  'Content-Type': 'application/json',
-  Authorization: `Bearer ${getToken() || DEMO_TOKEN}`,
-});
+const authHeaders = () => {
+  let storage: Storage | null = null;
+  try { storage = globalThis.sessionStorage; } catch { /* use the in-memory Demo identity */ }
+  const token = getRequestToken(DEMO_MODE ? 'demo' : 'production', storage, getToken());
+  return {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+};
 
 /** 从后端读取档案 */
 export async function loadProfileFromBackend(): Promise<Record<string, any> | null> {

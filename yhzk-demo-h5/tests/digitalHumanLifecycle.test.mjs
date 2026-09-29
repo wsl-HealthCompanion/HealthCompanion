@@ -7,7 +7,9 @@ const app = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8');
 
 test('digital human connects only for an authenticated, onboarded LiveTalking user', () => {
   assert.match(app, /if \(useXmovAvatar\) \{\s*digitalHuman\.invalidate\(\);[\s\S]*?return;\s*\}/);
-  assert.match(app, /if \(!loggedIn \|\| !onboardingDone\) \{[\s\S]*?digitalHuman\.invalidate\(\)/);
+  assert.match(app, /if \(!canConnectDigitalHuman\(DEMO_MODE \? 'demo' : 'production', loggedIn, onboardingDone\)\) \{[\s\S]*?digitalHuman\.invalidate\(\)/);
+  assert.match(app, /const canUseDigitalHuman = canConnectDigitalHuman\(DEMO_MODE \? 'demo' : 'production', loggedIn, onboardingDone\)/);
+  assert.match(app, /const digitalHumanCapabilityReady = useXmovAvatar \|\| !canUseDigitalHuman\s*\? Promise\.resolve\(null\)/);
   assert.match(app, /digitalHuman\.connect\(\)\.then/);
   assert.match(app, /\}, \[loggedIn, onboardingDone, useXmovAvatar\]\);/);
 });
