@@ -1,0 +1,33 @@
+name: Xmov M1.4 Task 1 SSML RED
+
+on:
+  push:
+    branches:
+      - feat/xmov-m1-action-lab
+    paths:
+      - 'yhzk-demo-h5/src/avatar/xmovKa.spec.ts'
+      - 'yhzk-demo-h5/src/avatar/xmovKa.ts'
+      - '.github/workflows/xmov-m1-temp.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: yhzk-demo-h5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: yhzk-demo-h5/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Run KA SSML spec
+        run: npx vitest run src/avatar/xmovKa.spec.ts
