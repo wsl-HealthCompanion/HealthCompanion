@@ -39,6 +39,7 @@ __pycache__/
 *.pyc
 .venv/
 venv/
+/yhzk-mvp-backend/data/
 .DS_Store
 *.swp
 
