@@ -14,9 +14,8 @@ export class XmovActionsClientError extends Error {
   constructor(
     public readonly code: XmovActionsClientErrorCode,
     message: string,
-    options?: ErrorOptions,
   ) {
-    super(message, options);
+    super(message);
     this.name = 'XmovActionsClientError';
   }
 }
