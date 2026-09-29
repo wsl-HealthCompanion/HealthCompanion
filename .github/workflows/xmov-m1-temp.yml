@@ -1,12 +1,12 @@
-name: Xmov M1.4 Task 1 SSML RED
+name: Xmov M1.4 Provider Playback RED
 
 on:
   push:
     branches:
       - feat/xmov-m1-action-lab
     paths:
-      - 'yhzk-demo-h5/src/avatar/xmovKa.spec.ts'
-      - 'yhzk-demo-h5/src/avatar/xmovKa.ts'
+      - 'yhzk-demo-h5/src/avatar/XmovAvatarProvider.playAction.spec.ts'
+      - 'yhzk-demo-h5/src/avatar/XmovAvatarProvider.ts'
       - '.github/workflows/xmov-m1-temp.yml'
 
 permissions:
@@ -29,5 +29,5 @@ jobs:
           cache-dependency-path: yhzk-demo-h5/package-lock.json
       - name: Install dependencies
         run: npm ci
-      - name: Run KA SSML spec
-        run: npx vitest run src/avatar/xmovKa.spec.ts
+      - name: Run provider KA playback spec
+        run: npx vitest run src/avatar/XmovAvatarProvider.playAction.spec.ts
