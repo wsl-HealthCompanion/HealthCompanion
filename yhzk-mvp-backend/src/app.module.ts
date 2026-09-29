@@ -54,6 +54,7 @@ import { HealthController } from './health/health.controller';
     AvatarAdminModule,
     AdminUserModule,
     DigitalHumanModule,
+    XmovActionsModule,
   ],
   controllers: [HealthController],
   providers: [
