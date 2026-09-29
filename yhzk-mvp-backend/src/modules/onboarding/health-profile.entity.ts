@@ -9,6 +9,7 @@ import {
   JoinColumn,
 } from 'typeorm';
 import { User } from '../auth/entities/user.entity';
+import { portableDateColumnType } from '../../common/database/column-types';
 
 export enum ProfileStep {
   STEP1 = 'step1',
@@ -51,18 +52,18 @@ export class HealthProfile {
   profile_data!: Record<string, any>;
 
   @Index('idx_profiles_draft_expiry')
-  @Column({ type: 'timestamp' })
+  @Column({ type: portableDateColumnType })
   draft_expiry!: Date;
 
   @Column({ type: 'text', default: '{}' })
   skipped_steps!: string[];
 
-  @CreateDateColumn({ type: 'timestamp' })
+  @CreateDateColumn({ type: portableDateColumnType })
   created_at!: Date;
 
-  @UpdateDateColumn({ type: 'timestamp' })
+  @UpdateDateColumn({ type: portableDateColumnType })
   updated_at!: Date;
 
-  @Column({ type: 'timestamp', nullable: true })
+  @Column({ type: portableDateColumnType, nullable: true })
   submitted_at!: Date | null;
 }
