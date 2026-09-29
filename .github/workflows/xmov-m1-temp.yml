@@ -1,0 +1,35 @@
+name: Xmov M1.2 Task 2 TDD
+
+on:
+  push:
+    branches:
+      - feat/xmov-m1-action-lab
+    paths:
+      - 'yhzk-mvp-backend/src/modules/xmov-actions/**'
+      - '.github/workflows/xmov-m1-temp.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: yhzk-mvp-backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: yhzk-mvp-backend/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Run service spec
+        run: >
+          npx jest src/modules/xmov-actions/xmov-actions.service.spec.ts
+          --runInBand
+          --config='{"moduleFileExtensions":["js","json","ts"],"rootDir":".","testRegex":".*\\.spec\\.ts$","transform":{"^.+\\.(t|j)s$":"ts-jest"},"testEnvironment":"node"}'
