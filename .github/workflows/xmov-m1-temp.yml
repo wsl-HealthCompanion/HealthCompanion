@@ -1,12 +1,12 @@
-name: Xmov M1.4 Bridge Playback RED
+name: Xmov M1.4 Action Lab UI RED
 
 on:
   push:
     branches:
       - feat/xmov-m1-action-lab
     paths:
-      - 'yhzk-demo-h5/src/services/xmovAvatar.playAction.spec.ts'
-      - 'yhzk-demo-h5/src/services/xmovAvatar.ts'
+      - 'yhzk-demo-h5/src/components/XmovActionLabPage.spec.tsx'
+      - 'yhzk-demo-h5/src/components/XmovActionLabPage.tsx'
       - '.github/workflows/xmov-m1-temp.yml'
 
 permissions:
@@ -29,5 +29,5 @@ jobs:
           cache-dependency-path: yhzk-demo-h5/package-lock.json
       - name: Install dependencies
         run: npm ci
-      - name: Run bridge KA playback spec
-        run: npx vitest run src/services/xmovAvatar.playAction.spec.ts
+      - name: Run Action Lab view spec
+        run: npx vitest run src/components/XmovActionLabPage.spec.tsx
