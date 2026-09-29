@@ -39,6 +39,7 @@
 **Files:**
 - Create: `yhzk-demo-h5/src/services/demoIdentity.ts`
 - Create: `yhzk-demo-h5/tests/demoIdentity.test.mjs`
+- Modify: `yhzk-demo-h5/tests/digitalHumanLifecycle.test.mjs`
 - Modify: `yhzk-demo-h5/src/config.ts`
 - Modify: `yhzk-demo-h5/src/App.tsx`
 - Modify: `yhzk-demo-h5/src/services/chat.ts`
@@ -59,6 +60,8 @@
 - [ ] **Step 1: Write tests for `demoIdentity`**
 
   Test stable reuse from one storage object, distinct tokens for separate tab storage objects, use of the Demo token even when a real auth token exists, production token selection, stable fallback when storage throws, Demo-scoped storage ids that never select a real user id, production login/onboarding gate decisions, and Demo's avatar-connect veto even when auth/onboarding flags are true.
+
+  Update the existing digital-human lifecycle assertion to verify that both the connection effect and send path use `canConnectDigitalHuman`, preserving its production authentication/onboarding coverage.
 
   Also add NestJS tests for `TRUST_PROXY_HOPS`: unset returns `false`, `1` returns `1`, and zero/fractional/non-numeric values are rejected.
 
