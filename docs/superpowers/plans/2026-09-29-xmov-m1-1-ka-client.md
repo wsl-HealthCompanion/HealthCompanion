@@ -67,7 +67,22 @@ expect(headers).toEqual({
 });
 ```
 
-Also add one test proving object keys are sorted and compact JSON is used before hashing.
+Add this second exact fixture to prove recursive key sorting and compact JSON:
+
+```ts
+const headers = buildXmovAuthHeaders({
+  appId: 'app-test',
+  appSecret: 'secret-test',
+  method: 'GET',
+  apiPath: '/MiXeD/Path',
+  data: { z: 1, a: { y: 2, x: 3 } },
+  timestamp: 1790690000,
+});
+
+expect(headers['X-TOKEN']).toBe('2a5f4f0f3d86752d0456c43a8f8d55ed');
+```
+
+This pins the serialized payload to `{"a":{"x":3,"y":2},"z":1}` before hashing.
 
 - [ ] **Step 2: Run the signature spec and confirm RED**
 
@@ -134,7 +149,16 @@ git commit -m "feat(xmov): add KA request signing"
 
 Pin `Date.now()` to `1790690000000`.
 
-Mock Axios so the test verifies one request with:
+Mock Axios so the test first verifies client construction:
+
+```ts
+expect(axios.create).toHaveBeenCalledWith({
+  baseURL: 'https://nebula-agent.xingyun3d.com',
+  timeout: 10_000,
+});
+```
+
+Then verify one request with:
 
 ```ts
 expect(http.request).toHaveBeenCalledWith(expect.objectContaining({
