@@ -9,7 +9,7 @@
     "dev:xmov": "vite --host --open /xmov-task1.html",
     "build": "tsc && vite build",
     "preview": "vite preview --host",
-    "test:xmov-action-lab": "vitest run src/avatar/xmovActions.spec.ts src/components/XmovActionLabPage.spec.tsx",
+    "test:xmov-action-lab": "vitest run src/avatar/xmovActions.spec.ts src/components/XmovActionLabPage.spec.tsx src/avatar/xmovKa.spec.ts src/avatar/XmovAvatarProvider.playAction.spec.ts src/services/xmovAvatar.playAction.spec.ts",
     "dev:xmov-actions": "vite --host --open /xmov-action-lab.html"
   },
   "dependencies": {
