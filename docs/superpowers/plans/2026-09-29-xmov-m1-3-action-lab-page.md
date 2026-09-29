@@ -69,7 +69,7 @@ npm install --save-dev vitest@2.1.9
 Add script:
 
 ```json
-"test:xmov-action-lab": "vitest run src/avatar/xmovActions.spec.ts src/components/XmovActionLabPage.spec.tsx"
+"test:xmov-action-lab": "vitest run"
 ```
 
 Expected: package.json and package-lock.json change; Vite remains on major 5.
@@ -113,7 +113,7 @@ E. HTTP 200 + `{ data: { actions: null } }` → same malformed-payload error.
 - [ ] **Step 3: Run client spec and confirm RED**
 
 ```bash
-npm run test:xmov-action-lab -- --run src/avatar/xmovActions.spec.ts
+npm run test:xmov-action-lab -- src/avatar/xmovActions.spec.ts
 ```
 
 Expected: FAIL because `xmovActions.ts` does not exist.
