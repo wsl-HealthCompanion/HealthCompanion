@@ -6,6 +6,7 @@ import {
   hasXmovCredentials,
 } from '../avatar/xmovConfig';
 import type { XmovAvatarRuntimeState } from '../avatar/types';
+import { xmovAvatar } from '../services/xmovAvatar';
 import './XmovAvatarPlayer.scss';
 
 const TASK1_SPEAK_TEXT = '你好，我是康伴智生，你的具身AI健康陪伴助手。';
@@ -28,10 +29,14 @@ function stateLabel(state: XmovAvatarRuntimeState): string {
 
 interface Props {
   showDevControls?: boolean;
+  subtitle?: string;
+  subtitleRole?: 'user' | 'assistant';
 }
 
 export default function XmovAvatarPlayer({
   showDevControls = XMOV_CONFIG.showDevControls,
+  subtitle,
+  subtitleRole = 'assistant',
 }: Props) {
   const containerId = useMemo(
     () => `xmov-avatar-${Math.random().toString(36).slice(2, 10)}`,
@@ -57,9 +62,14 @@ export default function XmovAvatarPlayer({
       },
     });
     providerRef.current = provider;
+    const detachBridge = xmovAvatar.attach(provider);
 
     if (hasXmovCredentials()) {
-      provider.init(containerId).catch((nextError) => {
+      provider.init(containerId).then(() => {
+        if (!mounted) return;
+        xmovAvatar.markReady(provider);
+      }).catch((nextError) => {
+        xmovAvatar.markUnavailable(provider);
         if (!mounted) return;
         setError(nextError instanceof Error ? nextError.message : String(nextError));
       });
@@ -71,6 +81,7 @@ export default function XmovAvatarPlayer({
     return () => {
       mounted = false;
       providerRef.current = null;
+      detachBridge();
       void provider.destroy();
     };
   }, [containerId]);
@@ -107,6 +118,13 @@ export default function XmovAvatarPlayer({
           <span>在 yhzk-demo-h5/.env.local 配置 App ID / App Secret 后刷新页面。</span>
           <code>VITE_XMOV_APP_ID=...</code>
           <code>VITE_XMOV_APP_SECRET=...</code>
+        </div>
+      )}
+
+      {subtitle && (
+        <div className={`xmov-subtitle ${subtitleRole}`}>
+          <span className="xmov-subtitle-role">{subtitleRole === 'user' ? '你' : '康伴智生'}</span>
+          <span>{subtitle}</span>
         </div>
       )}
 

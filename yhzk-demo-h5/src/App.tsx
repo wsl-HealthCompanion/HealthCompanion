@@ -1,5 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import DigitalHumanPlayer from './components/DigitalHumanPlayer';
+import XmovAvatarPlayer from './components/XmovAvatarPlayer';
+import { AVATAR_PROVIDER } from './avatar/xmovConfig';
 import PresetQuestions from './components/PresetQuestions';
 import InputBar from './components/InputBar';
 import ProfileCard from './components/ProfileCard';
@@ -10,6 +12,7 @@ import StatusBanner from './components/StatusBanner';
 import { streamChat, sendChatJson, fetchSessions, fetchMessages } from './services/chat';
 import type { SessionItem, MessageItem } from './services/chat';
 import { digitalHuman } from './services/digitalHuman';
+import { xmovAvatar } from './services/xmovAvatar';
 import {
   fetchCurrentUser,
   getStoredUser,
@@ -134,11 +137,13 @@ function loadUserModes(): { isElderly: boolean; careMode: boolean } {
 }
 
 export default function App() {
+  const useXmovAvatar = AVATAR_PROVIDER === 'xmov';
   const [onboardingDone, setOnboardingDone] = useState(obDone);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [subtitle, setSubtitle] = useState(() => getGreeting(loadProfile()));
   const [subtitleRole, setSubtitleRole] = useState<'user' | 'assistant'>('assistant');
   const [status, setStatus] = useState<DhStatus>('idle');
+  const [streamText, setStreamText] = useState('');
   const [emotion, setEmotion] = useState<Emotion>('neutral');
   const [audioEnabled, setAudioEnabled] = useState(false);
   const handleUnlockAudio = useCallback(() => setAudioEnabled(true), []);
@@ -200,46 +205,6 @@ export default function App() {
     return () => { active = false; };
   }, [loggedIn, appKey]);
 
-  // 切换会话 → 加载历史消息
-  const switchSession = useCallback(async (sid: string) => {
-    setCurrentSessionId(sid);
-    localStorage.setItem(`yhzk_last_session_${getUid()}`, sid); // 记住当前会话
-    setShowSessions(false);
-    setMessages([]);
-    const msgs = await fetchMessages(sid);
-    setMessages(msgs.map((m: MessageItem, i: number) => ({
-      id: m.id || `m_${i}`,
-      role: m.role as 'user' | 'assistant',
-      content: m.content,
-    })));
-    // 切到对话Tab
-    setActiveTab('chat');
-  }, []);
-
-  // 新建会话
-  const newSession = useCallback(() => {
-    setCurrentSessionId('');
-    setSessionId('');
-    setMessages([]);
-    setSubtitle(getGreeting(profile));
-    setSubtitleRole('assistant');
-    setStatus('idle');
-    setShowSessions(false);
-    setActiveTab('dh');
-    loadSessions(); // 刷新会话列表
-  }, [loadSessions]);
-
-  // 建档完成回调
-  const handleOnboardingComplete = useCallback((p: PresetProfile) => {
-    setProfile(p);
-    saveProfile(p);
-    setObDone();
-    setOnboardingDone(true);
-    saveProfileToBackend(p.profileData);
-    setSubtitle(getGreeting(p)); // 建档后更新欢迎语
-    setActiveTab('profile');
-  }, []);
-
   const isBusy = status !== 'idle';
   const contentRef = useRef('');
   const statusRef = useRef<DhStatus>('idle');
@@ -258,6 +223,23 @@ export default function App() {
     subtitleTimersRef.current = [];
   }, []);
 
+  // 流式文本按帧刷新，避免每个 token 都触发一次重渲染
+  const streamFlushRef = useRef<number | null>(null);
+  const scheduleStreamFlush = useCallback(() => {
+    if (streamFlushRef.current !== null) return;
+    streamFlushRef.current = requestAnimationFrame(() => {
+      streamFlushRef.current = null;
+      setStreamText(contentRef.current);
+    });
+  }, []);
+  const cancelStreamFlush = useCallback(() => {
+    if (streamFlushRef.current !== null) {
+      cancelAnimationFrame(streamFlushRef.current);
+      streamFlushRef.current = null;
+    }
+    setStreamText('');
+  }, []);
+
   const cancelActiveConversation = useCallback(() => {
     conversationGenerationRef.current += 1;
     conversationAbortRef.current?.abort();
@@ -265,7 +247,57 @@ export default function App() {
     if (subtitlePollerRef.current) clearInterval(subtitlePollerRef.current);
     subtitlePollerRef.current = null;
     clearSubtitleTimers();
-  }, [clearSubtitleTimers]);
+    cancelStreamFlush();
+    if (useXmovAvatar) void xmovAvatar.interrupt();
+  }, [clearSubtitleTimers, cancelStreamFlush, useXmovAvatar]);
+
+  // 切换会话 → 加载历史消息
+  const switchSession = useCallback(async (sid: string) => {
+    cancelActiveConversation();
+    setCurrentSessionId(sid);
+    localStorage.setItem(`yhzk_last_session_${getUid()}`, sid); // 记住当前会话
+    setShowSessions(false);
+    setMessages([]);
+    setStatus('idle');
+    const generation = conversationGenerationRef.current;
+    const msgs = await fetchMessages(sid);
+    if (conversationGenerationRef.current !== generation) {
+      // 历史加载期间用户已开启新一轮，不覆盖新一轮的消息
+      return;
+    }
+    setMessages(msgs.map((m: MessageItem, i: number) => ({
+      id: m.id || `m_${i}`,
+      role: m.role as 'user' | 'assistant',
+      content: m.content,
+    })));
+    // 切到对话Tab
+    setActiveTab('chat');
+  }, [cancelActiveConversation]);
+
+  // 新建会话
+  const newSession = useCallback(() => {
+    cancelActiveConversation();
+    setCurrentSessionId('');
+    setSessionId('');
+    setMessages([]);
+    setSubtitle(getGreeting(profile));
+    setSubtitleRole('assistant');
+    setStatus('idle');
+    setShowSessions(false);
+    setActiveTab('dh');
+    loadSessions(); // 刷新会话列表
+  }, [loadSessions, cancelActiveConversation]);
+
+  // 建档完成回调
+  const handleOnboardingComplete = useCallback((p: PresetProfile) => {
+    setProfile(p);
+    saveProfile(p);
+    setObDone();
+    setOnboardingDone(true);
+    saveProfileToBackend(p.profileData);
+    setSubtitle(getGreeting(p)); // 建档后更新欢迎语
+    setActiveTab('profile');
+  }, []);
 
   // 进页面即连接数字人。TTS 预热由 LiveTalking 进程统一执行，
   // 避免每个页面重复合成“嗯”并与用户的首次回答竞争。
@@ -280,6 +312,12 @@ export default function App() {
   }, [userModes]);
 
   useEffect(() => {
+    if (useXmovAvatar) {
+      digitalHuman.invalidate();
+      setDigitalHumanStreamUrl(null);
+      return;
+    }
+
     const unsubscribe = digitalHuman.subscribe((session) => {
       setDigitalHumanStreamUrl(session?.streamUrl ?? null);
     });
@@ -303,7 +341,7 @@ export default function App() {
       setDigitalHumanStreamUrl(null);
       void digitalHuman.disconnect();
     };
-  }, [loggedIn, onboardingDone]);
+  }, [loggedIn, onboardingDone, useXmovAvatar]);
 
   // 新消息自动滚到底部（只在新增消息时，不在 token 流式更新时）
   useEffect(() => {
@@ -321,15 +359,21 @@ export default function App() {
     subtitlePollerRef.current = null;
     const conversationAbort = new AbortController();
     const conversationGeneration = ++conversationGenerationRef.current;
+    const roundId = `round_${Date.now()}`;
     conversationAbortRef.current = conversationAbort;
-    let digitalHumanCapability = digitalHuman.capture();
+
+    if (useXmovAvatar) void xmovAvatar.interruptAndBegin(roundId);
+
+    let digitalHumanCapability = useXmovAvatar ? null : digitalHuman.capture();
     const isCurrentConversation = () => !conversationAbort.signal.aborted
       && conversationGenerationRef.current === conversationGeneration;
-    const digitalHumanCapabilityReady = digitalHumanCapability
-      ? Promise.resolve(digitalHumanCapability)
-      : digitalHuman.connect()
-          .then(() => isCurrentConversation() ? digitalHuman.capture() : null)
-          .catch(() => null);
+    const digitalHumanCapabilityReady = useXmovAvatar
+      ? Promise.resolve(null)
+      : digitalHumanCapability
+        ? Promise.resolve(digitalHumanCapability)
+        : digitalHuman.connect()
+            .then(() => isCurrentConversation() ? digitalHuman.capture() : null)
+            .catch(() => null);
 
     lastMsgRef.current = msg; // 保存用于重试
     setAudioEnabled(true);
@@ -348,13 +392,12 @@ export default function App() {
     let speechChunkMode = false;
     let subtitleEventPoller: ReturnType<typeof setInterval> | null = null;
     let lastSubtitleEventId = 0;
-    const roundId = `round_${Date.now()}`;
     let isFirstSpeak = true;
     let speakChain: Promise<void> = Promise.resolve();  // 串行化 speak 请求，防止乱序
 
     // 首次 speak 时启动字幕轮询，后续复用
     const startSubtitlePoller = () => {
-      if (subtitleEventPoller) return;
+      if (useXmovAvatar || subtitleEventPoller) return;
       lastSubtitleEventId = 0;
       subtitleEventPoller = setInterval(async () => {
         if (!isCurrentConversation() || !digitalHumanCapability?.isCurrent()) {
@@ -386,6 +429,14 @@ export default function App() {
     const enqueueSpeech = (rawText: string, segIdx: number) => {
       const cleaned = cleanMd(rawText);
       if (!cleaned) return;
+
+      if (useXmovAvatar) {
+        setSubtitle(cleaned);
+        setSubtitleRole('assistant');
+        xmovAvatar.pushSpeechChunk(roundId, cleaned);
+        return;
+      }
+
       const needInterrupt = isFirstSpeak;
       isFirstSpeak = false;
       // 排队：等上一个 speak 发完再发下一个，保证顺序不被打乱
@@ -414,6 +465,7 @@ export default function App() {
       if (!isCurrentConversation()) return;
       contentRef.current += char;
       if (statusRef.current !== 'speaking') setStatus('speaking');
+      scheduleStreamFlush();
     };
 
     const feedFallbackSpeechChar = (char: string) => {
@@ -432,6 +484,13 @@ export default function App() {
             if (!isCurrentConversation()) return;
             feedDisplayChar(char);
             feedFallbackSpeechChar(char);
+          },
+          onThinking: () => {
+            if (isCurrentConversation() && useXmovAvatar) void xmovAvatar.think(roundId);
+          },
+          onIntent: (intent, intentEmotion) => {
+            if (!isCurrentConversation() || !useXmovAvatar) return;
+            xmovAvatar.setIntent(roundId, intent, intentEmotion);
           },
           onSpeechChunk: (text) => {
             if (isCurrentConversation()) handleSpeechChunk(text);
@@ -464,6 +523,7 @@ export default function App() {
         }
         setStatus('speaking');
         contentRef.current += json.answer;
+        setStreamText(contentRef.current);
         for (const chunk of splitSpokenText(json.answer)) {
           if (!isCurrentConversation()) return;
           enqueueSpeech(chunk, nextSubtitleIdx++);
@@ -471,6 +531,7 @@ export default function App() {
       }
     } catch {
       if (!isCurrentConversation()) return;
+      if (useXmovAvatar) void xmovAvatar.interrupt();
       setAlert({type:'error', msg:'AI 服务未响应', detail:'点击重试，或检查后端是否已启动'});
     }
 
@@ -483,13 +544,16 @@ export default function App() {
       fallbackSpeechBuffer = '';
     }
 
+    if (useXmovAvatar) xmovAvatar.finishRound(roundId);
+
     const finalContent = contentRef.current || '抱歉，我暂时无法回答，请稍后再试。';
+    cancelStreamFlush();
     setMessages(prev => [...prev, { id: `a_${Date.now()}`, role: 'assistant', content: finalContent }]);
     setTimeout(() => {
       if (conversationGenerationRef.current === conversationGeneration) setStatus('idle');
     }, 1500);
     if (conversationAbortRef.current === conversationAbort) conversationAbortRef.current = null;
-  }, [isBusy, currentSessionId, sessionId, profile]);
+  }, [isBusy, currentSessionId, sessionId, profile, useXmovAvatar]);
 
   const handleProfileSave = useCallback((p: PresetProfile) => {
     setProfile(p);
@@ -508,7 +572,10 @@ export default function App() {
     cancelActiveConversation();
     setDigitalHumanStreamUrl(null);
     exitAuthenticatedSession({
-      interruptDigitalHuman: () => { void digitalHuman.disconnect(); },
+      interruptDigitalHuman: () => {
+        if (useXmovAvatar) void xmovAvatar.interrupt();
+        else void digitalHuman.disconnect();
+      },
       clearAuthentication: doLogout,
       refreshView: () => setAppKey(k => k + 1),
       showLogin: () => {
@@ -516,7 +583,7 @@ export default function App() {
         setUserModes({ isElderly: false, careMode: false });
       },
     });
-  }, [cancelActiveConversation]);
+  }, [cancelActiveConversation, useXmovAvatar]);
 
   useEffect(() => digitalHuman.onAuthenticationLost(handleLogout), [handleLogout]);
 
@@ -635,15 +702,22 @@ export default function App() {
       <main className={`app-main ${activeTab === 'dh' ? 'tab-dh' : activeTab === 'chat' ? 'tab-chat active' : 'tab-profile'}`}>
         {/* 左侧：数字人舞台 */}
         <div className="stage">
-          <DigitalHumanPlayer
-            streamUrl={digitalHumanStreamUrl}
-            status={status}
-            emotion={emotion}
-            audioEnabled={audioEnabled}
-            onUnlockAudio={handleUnlockAudio}
-            subtitle={subtitle}
-            subtitleRole={subtitleRole}
-          />
+          {useXmovAvatar ? (
+            <XmovAvatarPlayer
+              subtitle={subtitle}
+              subtitleRole={subtitleRole}
+            />
+          ) : (
+            <DigitalHumanPlayer
+              streamUrl={digitalHumanStreamUrl}
+              status={status}
+              emotion={emotion}
+              audioEnabled={audioEnabled}
+              onUnlockAudio={handleUnlockAudio}
+              subtitle={subtitle}
+              subtitleRole={subtitleRole}
+            />
+          )}
         </div>
 
         {/* 右侧：对话历史 / 我的页面 */}
@@ -711,12 +785,18 @@ export default function App() {
                 </div>
               )})
             )}
-            {status === 'thinking' && (
+            {status === 'thinking' && !streamText && (
               <div className="msg-row assistant">
                 <div className="msg-avatar">AI</div>
                 <div className="msg-bubble thinking">
                   <i /><i /><i />
                 </div>
+              </div>
+            )}
+            {streamText && (
+              <div className="msg-row assistant">
+                <div className="msg-avatar">AI</div>
+                <div className="msg-bubble">{cleanMd(streamText)}</div>
               </div>
             )}
             <div ref={messagesEndRef} />

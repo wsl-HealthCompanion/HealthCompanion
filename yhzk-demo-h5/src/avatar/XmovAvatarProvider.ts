@@ -71,12 +71,19 @@ export class XmovAvatarProvider {
       this.setState('initializing');
 
       const selector = containerId.startsWith('#') ? containerId : `#${containerId}`;
+      const gatewayUrl = new URL(XMOV_CONFIG.gatewayServer);
+      if (!gatewayUrl.searchParams.has('data_source')) {
+        gatewayUrl.searchParams.set('data_source', '2');
+      }
+      if (!gatewayUrl.searchParams.has('custom_id')) {
+        gatewayUrl.searchParams.set('custom_id', 'healthy-digital-human');
+      }
 
       this.instance = new XmovAvatar({
         containerId: selector,
         appId: XMOV_CONFIG.appId,
         appSecret: XMOV_CONFIG.appSecret,
-        gatewayServer: XMOV_CONFIG.gatewayServer,
+        gatewayServer: gatewayUrl.toString(),
         headers: { Authorization: XMOV_CONFIG.authorization },
         enableDebugger: false,
         hardwareAcceleration: 'prefer-hardware',
@@ -151,11 +158,15 @@ export class XmovAvatarProvider {
     clientSpeakId = `xmov_${Date.now()}`,
   ): Promise<void> {
     this.requireInstance();
-    if (!text.trim()) return;
+    const normalized = text.trim();
+    if (!normalized && !isEnd) return;
     this.setState('speaking');
-    await this.instance?.speak?.(toSsml(text), isStart, isEnd, {
-      client_speak_id: clientSpeakId,
-    });
+    await this.instance?.speak?.(
+      normalized ? toSsml(normalized) : '<speak></speak>',
+      isStart,
+      isEnd,
+      { client_speak_id: clientSpeakId },
+    );
   }
 
   async interrupt(): Promise<void> {

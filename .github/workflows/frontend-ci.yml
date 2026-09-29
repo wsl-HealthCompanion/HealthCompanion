@@ -1,0 +1,39 @@
+name: Frontend CI
+
+on:
+  pull_request:
+    paths:
+      - 'yhzk-demo-h5/**'
+      - '.github/workflows/frontend-ci.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'yhzk-demo-h5/**'
+      - '.github/workflows/frontend-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: yhzk-demo-h5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: yhzk-demo-h5/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript and Vite build
+        run: npm run build
