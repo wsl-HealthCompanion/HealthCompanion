@@ -1,19 +1,37 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import {
   fetchXmovActions,
   type XmovAction,
 } from '../avatar/xmovActions';
+import { xmovAvatar } from '../services/xmovAvatar';
+import XmovAvatarPlayer from './XmovAvatarPlayer';
 
 export type ActionLabState =
   | { status: 'loading'; actions: []; error: '' }
   | { status: 'ready'; actions: XmovAction[]; error: '' }
   | { status: 'error'; actions: []; error: string };
 
-interface XmovActionLabViewProps {
-  state: ActionLabState;
+export interface ActionPlaybackState {
+  semantic: string;
+  status: 'running' | 'success' | 'error';
+  message: string;
 }
 
-export function XmovActionLabView({ state }: XmovActionLabViewProps) {
+interface XmovActionLabViewProps {
+  state: ActionLabState;
+  playback: ActionPlaybackState | null;
+  onExecuteAction: (semantic: string) => void;
+  avatarStage?: ReactNode;
+}
+
+export function XmovActionLabView({
+  state,
+  playback,
+  onExecuteAction,
+  avatarStage,
+}: XmovActionLabViewProps) {
+  const anyActionRunning = playback?.status === 'running';
+
   return (
     <main className="xmov-action-lab">
       <header className="xmov-action-lab__header">
@@ -21,6 +39,13 @@ export function XmovActionLabView({ state }: XmovActionLabViewProps) {
         <h1>Xmov Action Lab</h1>
         <p>读取当前账号真实 KA 能力，用于确认后续健康陪伴场景可以依赖的动作。</p>
       </header>
+
+      {avatarStage && (
+        <section className="xmov-action-lab__avatar-stage">
+          <div className="xmov-action-lab__section-label">当前数字人</div>
+          {avatarStage}
+        </section>
+      )}
 
       {state.status === 'loading' && (
         <section className="xmov-action-lab__panel" aria-live="polite">
@@ -50,28 +75,72 @@ export function XmovActionLabView({ state }: XmovActionLabViewProps) {
             </div>
           ) : (
             <div className="xmov-action-lab__list">
-              {state.actions.map((action, index) => (
-                <article
-                  className="xmov-action-lab__item"
-                  key={`${action.rawName ?? action.semantic}-${index}`}
-                >
-                  <div className="xmov-action-lab__semantic">{action.semantic}</div>
-                  <dl>
-                    <div>
-                      <dt>英文名</dt>
-                      <dd>{action.name}</dd>
+              {state.actions.map((action, index) => {
+                const actionPlayback = playback?.semantic === action.semantic
+                  ? playback
+                  : null;
+
+                return (
+                  <article
+                    className="xmov-action-lab__item"
+                    key={`${action.rawName ?? action.semantic}-${index}`}
+                  >
+                    <div className="xmov-action-lab__semantic">{action.semantic}</div>
+
+                    <div className="xmov-action-lab__preview">
+                      {action.imageUrl && (
+                        <img
+                          src={action.imageUrl}
+                          alt={`${action.cnName || action.name} KA 预览`}
+                          loading="lazy"
+                        />
+                      )}
+                      {action.movieUrl && (
+                        <video
+                          src={action.movieUrl}
+                          controls
+                          preload="metadata"
+                        />
+                      )}
+                      {!action.imageUrl && !action.movieUrl && (
+                        <span className="xmov-action-lab__preview-empty">
+                          暂无预览资源
+                        </span>
+                      )}
                     </div>
-                    <div>
-                      <dt>中文名</dt>
-                      <dd>{action.cnName || '—'}</dd>
+
+                    <dl>
+                      <div>
+                        <dt>英文名</dt>
+                        <dd>{action.name}</dd>
+                      </div>
+                      <div>
+                        <dt>中文名</dt>
+                        <dd>{action.cnName || '—'}</dd>
+                      </div>
+                      <div>
+                        <dt>类型</dt>
+                        <dd>{action.type}</dd>
+                      </div>
+                    </dl>
+
+                    <div className="xmov-action-lab__controls">
+                      <button
+                        type="button"
+                        disabled={anyActionRunning}
+                        onClick={() => onExecuteAction(action.semantic)}
+                      >
+                        {actionPlayback?.status === 'running' ? '执行中' : '执行动作'}
+                      </button>
+                      {actionPlayback && (
+                        <span className={`xmov-action-lab__playback xmov-action-lab__playback--${actionPlayback.status}`}>
+                          {actionPlayback.message}
+                        </span>
+                      )}
                     </div>
-                    <div>
-                      <dt>类型</dt>
-                      <dd>{action.type}</dd>
-                    </div>
-                  </dl>
-                </article>
-              ))}
+                  </article>
+                );
+              })}
             </div>
           )}
         </section>
@@ -86,6 +155,7 @@ export default function XmovActionLabPage() {
     actions: [],
     error: '',
   });
+  const [playback, setPlayback] = useState<ActionPlaybackState | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -113,5 +183,39 @@ export default function XmovActionLabPage() {
     };
   }, []);
 
-  return <XmovActionLabView state={state} />;
+  const executeAction = async (semantic: string) => {
+    if (playback?.status === 'running') return;
+
+    setPlayback({
+      semantic,
+      status: 'running',
+      message: '执行中',
+    });
+
+    try {
+      await xmovAvatar.playAction(semantic);
+      setPlayback({
+        semantic,
+        status: 'success',
+        message: '已提交给 Xmov SDK，请观察数字人实际动作',
+      });
+    } catch (error) {
+      setPlayback({
+        semantic,
+        status: 'error',
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  };
+
+  return (
+    <XmovActionLabView
+      state={state}
+      playback={playback}
+      onExecuteAction={(semantic) => {
+        void executeAction(semantic);
+      }}
+      avatarStage={<XmovAvatarPlayer showDevControls={false} />}
+    />
+  );
 }
