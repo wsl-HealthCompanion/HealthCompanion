@@ -1,4 +1,4 @@
-name: Xmov M1.3 Task 3 Build RED
+name: Xmov M1.3 Final Verification
 
 on:
   push:
@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 jobs:
-  build:
+  verify:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -27,7 +27,12 @@ jobs:
           cache-dependency-path: yhzk-demo-h5/package-lock.json
       - name: Install dependencies
         run: npm ci
+      - name: Run Action Lab tests
+        run: npm run test:xmov-action-lab
       - name: Build frontend
         run: npm run build
-      - name: Require Action Lab production entry
-        run: test -f dist/xmov-action-lab.html
+      - name: Verify all production HTML entries
+        run: |
+          test -f dist/index.html
+          test -f dist/xmov-task1.html
+          test -f dist/xmov-action-lab.html
