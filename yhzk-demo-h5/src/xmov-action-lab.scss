@@ -205,6 +205,34 @@ body {
   color: #b23a3a;
 }
 
+
+@media (min-width: 960px) {
+  .xmov-action-lab {
+    display: grid;
+    grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
+    column-gap: 24px;
+    align-items: start;
+  }
+
+  .xmov-action-lab__header {
+    grid-column: 1 / -1;
+  }
+
+  .xmov-action-lab__avatar-stage {
+    grid-column: 1;
+    grid-row: 2;
+    position: sticky;
+    top: 20px;
+    margin-bottom: 0;
+  }
+
+  .xmov-action-lab > .xmov-action-lab__panel,
+  .xmov-action-lab > .xmov-action-lab__results {
+    grid-column: 2;
+    grid-row: 2;
+  }
+}
+
 @media (max-width: 700px) {
   .xmov-action-lab {
     width: min(100% - 28px, 1120px);
