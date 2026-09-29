@@ -19,3 +19,13 @@ export class XmovActionsClientError extends Error {
     this.name = 'XmovActionsClientError';
   }
 }
+
+export interface XmovAction {
+  semantic: string;
+  name: string;
+  cnName: string;
+  type: string;
+  imageUrl?: string;
+  movieUrl?: string;
+  rawName?: string;
+}
