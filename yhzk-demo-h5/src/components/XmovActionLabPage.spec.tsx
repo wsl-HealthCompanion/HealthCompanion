@@ -1,3 +1,4 @@
+import { createElement, type ComponentType } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import {
@@ -5,8 +6,28 @@ import {
   type ActionLabState,
 } from './XmovActionLabPage';
 
-function render(state: ActionLabState): string {
-  return renderToStaticMarkup(<XmovActionLabView state={state} />);
+interface FuturePlaybackState {
+  semantic: string;
+  status: 'running' | 'success' | 'error';
+  message: string;
+}
+
+interface FutureViewProps {
+  state: ActionLabState;
+  playback: FuturePlaybackState | null;
+  onExecuteAction: (semantic: string) => void;
+}
+
+function render(
+  state: ActionLabState,
+  playback: FuturePlaybackState | null = null,
+): string {
+  const View = XmovActionLabView as unknown as ComponentType<FutureViewProps>;
+  return renderToStaticMarkup(createElement(View, {
+    state,
+    playback,
+    onExecuteAction: () => undefined,
+  }));
 }
 
 describe('XmovActionLabView', () => {
@@ -74,7 +95,7 @@ describe('XmovActionLabView', () => {
     expect(html).not.toContain('暂无可用 KA 动作');
   });
 
-  it('does not expose preview or playback controls in M1.3', () => {
+  it('renders real image and video previews without autoplay', () => {
     const html = render({
       status: 'ready',
       error: '',
@@ -88,9 +109,76 @@ describe('XmovActionLabView', () => {
       }],
     });
 
-    expect(html).not.toContain('播放');
-    expect(html).not.toContain('试播');
-    expect(html).not.toContain('<video');
-    expect(html).not.toContain('<img');
+    expect(html).toContain('<img');
+    expect(html).toContain('loading="lazy"');
+    expect(html).toContain('<video');
+    expect(html).toContain('controls=""');
+    expect(html).toContain('preload="metadata"');
+    expect(html).not.toContain('autoplay');
+    expect(html).toContain('执行动作');
+  });
+
+  it('keeps actions executable when no preview resource exists', () => {
+    const html = render({
+      status: 'ready',
+      error: '',
+      actions: [{
+        semantic: 'Wave',
+        name: 'Wave',
+        cnName: '',
+        type: 'gesture',
+      }],
+    });
+
+    expect(html).toContain('Wave');
+    expect(html).toContain('暂无预览资源');
+    expect(html).toContain('执行动作');
+  });
+
+  it('disables execution while a KA action is running', () => {
+    const html = render({
+      status: 'ready',
+      error: '',
+      actions: [{
+        semantic: 'PointingSelf',
+        name: 'PointingSelf',
+        cnName: '指向自己',
+        type: 'body_action',
+      }],
+    }, {
+      semantic: 'PointingSelf',
+      status: 'running',
+      message: '执行中',
+    });
+
+    expect(html).toContain('执行中');
+    expect(html).toContain('disabled=""');
+  });
+
+  it('renders playback success and SDK failure feedback', () => {
+    const state: ActionLabState = {
+      status: 'ready',
+      error: '',
+      actions: [{
+        semantic: 'PointingSelf',
+        name: 'PointingSelf',
+        cnName: '指向自己',
+        type: 'body_action',
+      }],
+    };
+
+    const success = render(state, {
+      semantic: 'PointingSelf',
+      status: 'success',
+      message: '已提交给 Xmov SDK，请观察数字人实际动作',
+    });
+    const failure = render(state, {
+      semantic: 'PointingSelf',
+      status: 'error',
+      message: 'SDK rejected KA',
+    });
+
+    expect(success).toContain('已提交给 Xmov SDK');
+    expect(failure).toContain('SDK rejected KA');
   });
 });
