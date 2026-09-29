@@ -102,23 +102,23 @@ Milestone 1 分六次完成，每次都能单独验收。
 
 ### M1.1 — KA Client
 
-目标：建立真实 KA 数据入口。
+目标：只解决“能否可靠调用真实 KA API”，不提前定义 H5 稳定数据契约。
 
 范围：
 
-- 新增 NestJS Xmov Actions 模块；
+- 新增 Xmov Actions client 与上游 raw 类型；
 - 实现官方请求签名；
 - 调用真实 KA 列表接口；
-- 将原始响应交给标准化函数；
-- 暴露内部只读接口 `GET /api/v1/xmov/actions`；
+- 返回原始响应给后续 service/normalizer 使用；
 - 单测固定时间戳下的签名与请求头；
-- 单测成功、上游异常、空响应。
+- 单测成功、上游非 2xx、超时、空响应；
+- 缺少必要配置时给出明确错误。
 
-完成后不做 Action Lab UI。
+M1.1 不新增 Action Lab UI，也不暴露给 H5 的正式 `/api/v1/xmov/actions` 稳定接口。
 
-### M1.2 — Action Normalizer
+### M1.2 — Action Normalizer + Stable API
 
-目标：把官方字段变成稳定内部模型。
+目标：把官方字段变成稳定内部模型，并在这一轮第一次确定前端可依赖的接口契约。
 
 范围：
 
@@ -126,7 +126,11 @@ Milestone 1 分六次完成，每次都能单独验收。
 - 对官方命名中的前缀/后缀进行确定性 semantic 提取；
 - 保留 `rawName`；
 - 对缺字段和未知类型做可预测 fallback；
-- 使用 fixture 测试真实/近真实样例。
+- 使用 fixture 测试真实/近真实样例；
+- service 组合 client + normalizer；
+- 暴露内部只读接口 `GET /api/v1/xmov/actions`；
+- 接口只返回标准化 `XmovAction[]`，不向 H5 暴露官方 raw payload；
+- 空动作列表返回 `{ "actions": [] }`，不制造 fallback 动作。
 
 完成后 H5 仍可以没有页面。
 
@@ -350,18 +354,20 @@ Normalizer 尽量提取已知字段；完全无法识别时让该条进入可诊
 - 请求携带官方要求的身份/时间/签名头；
 - 上游非 2xx 转成明确错误；
 - 超时可识别；
-- service 不伪造 fallback 动作。
+- 缺少配置时不发起上游请求。
 
 ### M1.2
 
-fixture 测试：
+fixture 与接口测试：
 
 - 完整动作；
 - 缺中文名；
 - 缺预览资源；
 - 动作名含官方前缀；
 - 无法提取 semantic；
-- 空数组。
+- 空数组；
+- service 不伪造 fallback 动作；
+- `GET /api/v1/xmov/actions` 只返回标准化字段。
 
 ### M1.3+
 
