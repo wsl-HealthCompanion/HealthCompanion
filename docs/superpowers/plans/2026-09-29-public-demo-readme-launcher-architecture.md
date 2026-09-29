@@ -75,7 +75,7 @@
 
 - [ ] **Step 3: Implement Demo identity and entry behavior**
 
-  Add `DEMO_MODE` from `import.meta.env.MODE`; update chat and user request headers to use `getRequestToken`. In `App.tsx`, use `getStorageUserId` for all user-scoped localStorage keys, initialize Demo as unauthenticated, resolve entry through `resolveEntryScreen`, still load Demo chat sessions, and gate both digital-human session setup and `handleSend` capability acquisition with `canConnectDigitalHuman`. This prevents LiveTalking connect/speak calls even when the browser had a stale logged-in user. Hide the logout action in Demo so the visitor cannot clear a stored production login. Add a visible Chinese privacy notice that chat is stored/sent for AI processing and that real health data must not be entered.
+  Add `DEMO_MODE` from `import.meta.env.MODE`; update chat and user request headers to use `getRequestToken`. In `App.tsx`, use `getStorageUserId` for all user-scoped localStorage keys, initialize Demo as unauthenticated, resolve entry through `resolveEntryScreen`, start on the text chat tab in Demo, still load Demo chat sessions, and gate both digital-human session setup and `handleSend` capability acquisition with `canConnectDigitalHuman`. This prevents LiveTalking connect/speak calls even when the browser had a stale logged-in user. Hide profile and logout actions in Demo so it stays text-chat scoped and cannot clear a stored production login. Add a visible Chinese privacy notice that chat is stored/sent for AI processing and that real health data must not be entered.
 
   Add the validated opt-in proxy-hop parser and set NestJS Express `trust proxy` from `TRUST_PROXY_HOPS`; do not enable proxy trust by default.
 
