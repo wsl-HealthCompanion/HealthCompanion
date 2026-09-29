@@ -1,4 +1,5 @@
 name: Xmov M1 Temporary Test
+# trigger: task1-green
 
 on:
   push:
