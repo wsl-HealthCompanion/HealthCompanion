@@ -8,6 +8,7 @@ import { AdminAuditEntry, AdminAuditService } from '../admin-audit/admin-audit.s
 import { AdminPrincipal } from '../admin-auth/admin-auth.guard';
 import { AvatarAdminService } from './avatar-admin.service';
 import { AvatarAdminStore, AvatarDeletionSnapshot } from './avatar-admin.store';
+import { evaluateAvatarDeletion } from './avatar-policy';
 import { AvatarRuntimeClient, AvatarRuntimeState } from './avatar-runtime.client';
 import { DigitalHumanAvatar } from './entities/digital-human-avatar.entity';
 import { UploadTicketService } from './upload-ticket.service';
@@ -62,8 +63,14 @@ class FakeStore {
     }));
   }
 
-  async setDefaultAvatar(id: string) {
+  async setDefaultReadyAvatar(id: string) {
+    const target = this.avatars.get(id);
+    if (!target) return { outcome: 'not_found' as const };
+    if (target.status !== 'ready') return { outcome: 'not_ready' as const };
+    const previousDefaultId = Array.from(this.avatars.values()).find((stored) => stored.isDefault)?.id ?? null;
+    const wasDefault = target.isDefault;
     for (const stored of this.avatars.values()) stored.isDefault = stored.id === id;
+    return { outcome: 'ready' as const, wasDefault, previousDefaultId };
   }
 
   async getDeletionSnapshot(id: string) {
@@ -72,6 +79,23 @@ class FakeStore {
       assignedUserCount: 0,
       activeTaskCount: 0,
     };
+  }
+
+  async prepareDeletion(id: string, runtime: { testRunning: boolean; activeSessionCount: number }) {
+    const stored = this.avatars.get(id);
+    if (!stored) return null;
+    const snapshot = this.snapshots.get(id);
+    const result = evaluateAvatarDeletion({
+      avatarId: id,
+      status: stored.status,
+      isDefault: stored.isDefault,
+      assignedUserCount: snapshot?.assignedUserCount ?? 0,
+      activeTaskCount: snapshot?.activeTaskCount ?? 0,
+      testRunning: runtime.testRunning,
+      activeSessionCount: runtime.activeSessionCount,
+    });
+    if (result.allowed) stored.status = 'deleting';
+    return result;
   }
 
   async markDeleting(id: string) {

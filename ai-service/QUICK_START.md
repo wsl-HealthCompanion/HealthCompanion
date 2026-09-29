@@ -5,7 +5,7 @@
 ### 阶段A: Python AI服务 (100%)
 - ✅ LLM工厂 + DeepSeek连通性
 - ✅ ①调度智能体 (意图识别)
-- ✅ ④知识库问答智能体 (RAG + 生成答案)
+- ✅ ④知识库问答智能体 (生成答案；开启 RAG 时检索知识库，默认关闭)
 - ✅ LangGraph编排 (orchestrator → knowledge_qa)
 - ✅ 真流式SSE接口 (token级流式)
 - ✅ 完整测试套件 (6个测试文件,全部通过)
@@ -300,9 +300,9 @@ export class ChatService {
 - ✅ 情绪检测 (neutral/happy/anxious/sad)
 
 ### 2. 知识库问答 (④知识库智能体)
-- ✅ RAG双库检索 (user + general)
+- ✅ RAG双库检索 (需启用 `RAG_ENABLED=true` 并连接已导入数据的 Milvus；默认关闭)
 - ✅ DeepSeek-R1生成答案
-- ✅ 引用来源标注
+- ✅ RAG 命中时提供引用来源 (需启用 `RAG_ENABLED=true` 并检索到文档；默认关闭 RAG 时不会有引用)
 - ✅ TTS文本生成
 - ✅ 快捷回复生成
 

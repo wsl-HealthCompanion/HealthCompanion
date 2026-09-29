@@ -2,19 +2,27 @@
 // 聊天服务 — SSE 流式（浏览器 fetch + ReadableStream）+ JSON 回退
 // 浏览器里 SSE 走 HTTP 即可，无微信"必须 HTTPS"限制
 // ============================================================
-import { API_BASE, DEMO_TOKEN } from '../config';
+import { API_BASE, DEMO_MODE } from '../config';
 import { getToken } from './auth';
-import type { Emotion } from '../types';
+import { getRequestToken } from './demoIdentity';
+import { dispatchChatEvent } from './chatEvents';
+import type { ChatCitation, Emotion } from '../types';
 
-const authHeaders = () => ({
-  'Content-Type': 'application/json',
-  Authorization: `Bearer ${getToken() || DEMO_TOKEN}`,
-});
+const authHeaders = () => {
+  let storage: Storage | null = null;
+  try { storage = globalThis.sessionStorage; } catch { /* use the in-memory Demo identity */ }
+  const token = getRequestToken(DEMO_MODE ? 'demo' : 'production', storage, getToken());
+  return {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+};
 
 export interface ChatParams {
   message: string;
   sessionId: string;
   profile: Record<string, any>;
+  skipTts?: boolean;
 }
 
 export interface StreamCallbacks {
@@ -23,6 +31,7 @@ export interface StreamCallbacks {
   onIntent?: (intent: string, emotion?: Emotion) => void;
   onSpeechChunk?: (text: string, index: number) => void;
   onEmotion?: (e: Emotion) => void;
+  onCitation?: (citation: ChatCitation) => void;
   onDone?: (sessionId?: string) => void;
 }
 
@@ -40,6 +49,7 @@ export async function streamChat(
     sessionId: params.sessionId || '',
     type: 'text',
     profile: params.profile,
+    skipTts: params.skipTts ?? false,
   });
 
   try {
@@ -68,18 +78,7 @@ export async function streamChat(
         try {
           const evt = JSON.parse(m[1]);
           sawEvent = true;
-          if (evt.type === 'token') cb.onToken(evt.content || '');
-          else if (evt.type === 'thinking') cb.onThinking?.(evt.content || '');
-          else if (evt.type === 'speech_chunk') cb.onSpeechChunk?.(evt.text || '', evt.index ?? 0);
-          else if (evt.type === 'intent') {
-            const emotion = evt.emotion as Emotion | undefined;
-            cb.onIntent?.(evt.primary || evt.intent || 'unknown', emotion);
-            if (emotion) cb.onEmotion?.(emotion);
-          }
-          else if (evt.type === 'done') {
-            if (evt.emotion) cb.onEmotion?.(evt.emotion);
-            cb.onDone?.(evt.sessionId);
-          }
+          dispatchChatEvent(evt, cb);
         } catch {
           /* 忽略解析失败片段 */
         }
@@ -107,6 +106,7 @@ export interface MessageItem {
   role: string;
   content: string;
   intent?: string;
+  citations?: ChatCitation[];
   createdAt: string;
 }
 export interface MessageListResult { items: MessageItem[]; }
@@ -133,6 +133,7 @@ export interface JsonResult {
   answer: string;
   emotion: Emotion;
   sessionId: string;
+  citations: ChatCitation[];
 }
 
 /** JSON 一次性回退 */
@@ -142,6 +143,7 @@ export async function sendChatJson(params: ChatParams, signal?: AbortSignal): Pr
     sessionId: params.sessionId || '',
     type: 'text',
     profile: params.profile,
+    skipTts: params.skipTts ?? false,
   });
   try {
     const resp = await fetch(`${API_BASE}/chat/send`, {
@@ -156,10 +158,11 @@ export async function sendChatJson(params: ChatParams, signal?: AbortSignal): Pr
       answer: data?.answer || '',
       emotion: (data?.emotion || 'neutral') as Emotion,
       sessionId: data?.sessionId || '',
+      citations: Array.isArray(data?.citations) ? data.citations : [],
     };
   } catch (e) {
     if (signal?.aborted) throw e;
     console.warn('[chat] JSON 后端不可用:', e);
-    return { answer: '', emotion: 'neutral', sessionId: '' };
+    return { answer: '', emotion: 'neutral', sessionId: '', citations: [] };
   }
 }

@@ -22,9 +22,11 @@ import {
 } from './services/auth';
 import { saveProfileToBackend, loadProfileFromBackend } from './services/user';
 import { exitAuthenticatedSession } from './appSession';
+import { DEMO_MODE } from './config';
+import { canConnectDigitalHuman, getDemoToken, getStorageUserId, resolveEntryScreen } from './services/demoIdentity';
 import { getGreeting, getPresetQuestions } from './presetProfile';
 import type { PresetProfile } from './presetProfile';
-import type { ChatMessage, Emotion } from './types';
+import type { ChatCitation, ChatMessage, Emotion } from './types';
 import './index.scss';
 
 type DhStatus = 'idle' | 'thinking' | 'speaking';
@@ -78,7 +80,14 @@ function splitSpokenText(input: string): string[] {
 }
 
 // ── 按用户隔离的 localStorage 助手 ──
-const getUid = () => localStorage.getItem('yhzk_uid') || 'demo';
+const getUid = () => {
+  if (DEMO_MODE) {
+    let storage: Storage | null = null;
+    try { storage = globalThis.sessionStorage; } catch { /* use in-memory identity */ }
+    return getStorageUserId('demo', getDemoToken(storage), '');
+  }
+  return getStorageUserId('production', '', localStorage.getItem('yhzk_uid') || 'demo');
+};
 
 function loadProfile(): PresetProfile {
   try {
@@ -137,8 +146,8 @@ function loadUserModes(): { isElderly: boolean; careMode: boolean } {
 }
 
 export default function App() {
-  const useXmovAvatar = AVATAR_PROVIDER === 'xmov';
-  const [onboardingDone, setOnboardingDone] = useState(obDone);
+  const useXmovAvatar = !DEMO_MODE && AVATAR_PROVIDER === 'xmov';
+  const [onboardingDone, setOnboardingDone] = useState(() => !DEMO_MODE && obDone());
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [subtitle, setSubtitle] = useState(() => getGreeting(loadProfile()));
   const [subtitleRole, setSubtitleRole] = useState<'user' | 'assistant'>('assistant');
@@ -149,19 +158,19 @@ export default function App() {
   const handleUnlockAudio = useCallback(() => setAudioEnabled(true), []);
   const [profileOpen, setProfileOpen] = useState(false);
   const [sessionId, setSessionId] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<Tab>('dh');
+  const [activeTab, setActiveTab] = useState<Tab>(DEMO_MODE ? 'chat' : 'dh');
   const [profile, setProfile] = useState<PresetProfile>(loadProfile);
   const [reOnboard, setReOnboard] = useState(false);
   const [alert, setAlert] = useState<{type:'error'|'warning'|'info'; msg:string; detail?:string}|null>(null);
   const [editText, setEditText] = useState('');
-  const [loggedIn, setLoggedIn] = useState(isLoggedIn);
+  const [loggedIn, setLoggedIn] = useState(() => !DEMO_MODE && isLoggedIn());
   const [digitalHumanStreamUrl, setDigitalHumanStreamUrl] = useState<string | null>(null);
   const [appKey, setAppKey] = useState(0);
-  const [userModes, setUserModes] = useState(loadUserModes);
+  const [userModes, setUserModes] = useState(() => DEMO_MODE ? { isElderly: false, careMode: false } : loadUserModes());
   const [fontSize, setFontSize] = useState<number>(() => {
     const saved = parseInt(localStorage.getItem('yhzk_font_size') || '0', 10);
     if (saved > 0) return saved;
-    const modes = loadUserModes();
+    const modes = DEMO_MODE ? { isElderly: false, careMode: false } : loadUserModes();
     if (modes.careMode) return 20;
     if (modes.isElderly) return 18;
     return 16;
@@ -183,7 +192,7 @@ export default function App() {
   }, [currentSessionId]);
 
   useEffect(() => {
-    if (!loggedIn) return;
+    if (!DEMO_MODE && !loggedIn) return;
     loadSessions().then(() => {
       const lastSid = localStorage.getItem(`yhzk_last_session_${getUid()}`);
       if (lastSid) { switchSession(lastSid); }
@@ -191,7 +200,7 @@ export default function App() {
   }, [loggedIn]); // eslint-disable-line
 
   useEffect(() => {
-    if (!loggedIn) return;
+    if (DEMO_MODE || !loggedIn) return;
     let active = true;
     fetchCurrentUser().then((user) => {
       if (!active || !user) return;
@@ -269,6 +278,7 @@ export default function App() {
       id: m.id || `m_${i}`,
       role: m.role as 'user' | 'assistant',
       content: m.content,
+      citations: m.citations,
     })));
     // 切到对话Tab
     setActiveTab('chat');
@@ -321,7 +331,7 @@ export default function App() {
     const unsubscribe = digitalHuman.subscribe((session) => {
       setDigitalHumanStreamUrl(session?.streamUrl ?? null);
     });
-    if (!loggedIn || !onboardingDone) {
+    if (!canConnectDigitalHuman(DEMO_MODE ? 'demo' : 'production', loggedIn, onboardingDone)) {
       digitalHuman.invalidate();
       setDigitalHumanStreamUrl(null);
       unsubscribe();
@@ -364,10 +374,11 @@ export default function App() {
 
     if (useXmovAvatar) void xmovAvatar.interruptAndBegin(roundId);
 
-    let digitalHumanCapability = useXmovAvatar ? null : digitalHuman.capture();
+    const canUseDigitalHuman = canConnectDigitalHuman(DEMO_MODE ? 'demo' : 'production', loggedIn, onboardingDone);
+    let digitalHumanCapability = useXmovAvatar || !canUseDigitalHuman ? null : digitalHuman.capture();
     const isCurrentConversation = () => !conversationAbort.signal.aborted
       && conversationGenerationRef.current === conversationGeneration;
-    const digitalHumanCapabilityReady = useXmovAvatar
+    const digitalHumanCapabilityReady = useXmovAvatar || !canUseDigitalHuman
       ? Promise.resolve(null)
       : digitalHumanCapability
         ? Promise.resolve(digitalHumanCapability)
@@ -387,6 +398,7 @@ export default function App() {
     contentRef.current = '';
 
     let aiEmotion: Emotion = 'neutral';
+    let responseCitations: ChatCitation[] = [];
     let fallbackSpeechBuffer = '';
     let nextSubtitleIdx = 0;
     let speechChunkMode = false;
@@ -478,7 +490,7 @@ export default function App() {
 
     try {
       const result = await streamChat(
-        { message: msg, sessionId: currentSessionId || sessionId, profile: profile.profileData },
+        { message: msg, sessionId: currentSessionId || sessionId, profile: profile.profileData, skipTts: true },
         {
           onToken: (char) => {
             if (!isCurrentConversation()) return;
@@ -496,8 +508,12 @@ export default function App() {
             if (isCurrentConversation()) handleSpeechChunk(text);
           },
           onEmotion: (e) => { if (isCurrentConversation()) { aiEmotion = e; setEmotion(e); } },
+          onCitation: (citation) => {
+            if (isCurrentConversation()) responseCitations.push(citation);
+          },
           onDone: (sid) => {
             if (!isCurrentConversation()) return;
+            if (useXmovAvatar) xmovAvatar.finishRound(roundId);
             if (sid) {
               if (!currentSessionId) { setCurrentSessionId(sid); localStorage.setItem(`yhzk_last_session_${getUid()}`, sid); }
               if (!sessionId) setSessionId(sid);
@@ -511,11 +527,12 @@ export default function App() {
 
       if (!result.streamed) {
         const json = await sendChatJson(
-          { message: msg, sessionId, profile: profile.profileData },
+          { message: msg, sessionId, profile: profile.profileData, skipTts: true },
           conversationAbort.signal,
         );
         if (!isCurrentConversation()) return;
         aiEmotion = json.emotion;
+        responseCitations = json.citations;
         setEmotion(json.emotion);
         if (json.sessionId) {
           if (!currentSessionId) { setCurrentSessionId(json.sessionId); localStorage.setItem(`yhzk_last_session_${getUid()}`, json.sessionId); }
@@ -548,12 +565,17 @@ export default function App() {
 
     const finalContent = contentRef.current || '抱歉，我暂时无法回答，请稍后再试。';
     cancelStreamFlush();
-    setMessages(prev => [...prev, { id: `a_${Date.now()}`, role: 'assistant', content: finalContent }]);
+    setMessages(prev => [...prev, {
+      id: `a_${Date.now()}`,
+      role: 'assistant',
+      content: finalContent,
+      citations: responseCitations,
+    }]);
     setTimeout(() => {
       if (conversationGenerationRef.current === conversationGeneration) setStatus('idle');
     }, 1500);
     if (conversationAbortRef.current === conversationAbort) conversationAbortRef.current = null;
-  }, [isBusy, currentSessionId, sessionId, profile, useXmovAvatar]);
+  }, [isBusy, currentSessionId, sessionId, profile, useXmovAvatar, loggedIn, onboardingDone]);
 
   const handleProfileSave = useCallback((p: PresetProfile) => {
     setProfile(p);
@@ -585,11 +607,15 @@ export default function App() {
     });
   }, [cancelActiveConversation, useXmovAvatar]);
 
-  useEffect(() => digitalHuman.onAuthenticationLost(handleLogout), [handleLogout]);
+  useEffect(() => {
+    if (DEMO_MODE) return;
+    return digitalHuman.onAuthenticationLost(handleLogout);
+  }, [handleLogout]);
 
   // 所有 hooks 之后才判断
   // 未登录 → 显示登录页
-  if (!loggedIn) return <div key={appKey}><LoginPage onLogin={async (result) => {
+  const entryScreen = resolveEntryScreen(DEMO_MODE ? 'demo' : 'production', loggedIn, onboardingDone);
+  if (entryScreen === 'login') return <div key={appKey}><LoginPage onLogin={async (result) => {
     digitalHuman.invalidate();
     setDigitalHumanStreamUrl(null);
     localStorage.setItem('yhzk_uid', result.user.id);
@@ -642,7 +668,7 @@ export default function App() {
   }} /></div>;
 
   // 未建档 → 显示建档向导
-  if (!onboardingDone) return <div key={appKey}><Onboarding
+  if (entryScreen === 'onboarding') return <div key={appKey}><Onboarding
     onComplete={handleOnboardingComplete}
     onClose={handleLogout}
     closeLabel="退出登录"
@@ -669,10 +695,16 @@ export default function App() {
         <div className="app-actions">
           <button className="app-btn app-font-btn" onClick={() => { const s = Math.max(12, fontSize - 2); setFontSize(s); localStorage.setItem('yhzk_font_size', String(s)); }}>A⁻</button>
           <button className="app-btn app-font-btn" onClick={() => { const s = Math.min(24, fontSize + 2); setFontSize(s); localStorage.setItem('yhzk_font_size', String(s)); }}>A⁺</button>
-          <button className="app-btn" onClick={() => setActiveTab(activeTab==='profile'?'dh':'profile')}>👤 我的</button>
-          <button className="app-btn" onClick={handleLogout}>🚪 登出</button>
+          {!DEMO_MODE && <button className="app-btn" onClick={() => setActiveTab(activeTab==='profile'?'dh':'profile')}>👤 我的</button>}
+          {!DEMO_MODE && <button className="app-btn" onClick={handleLogout}>🚪 登出</button>}
         </div>
       </header>
+
+      {DEMO_MODE && (
+        <aside className="demo-privacy-notice" role="note">
+          <strong>匿名演示模式</strong>：请勿输入真实姓名、电话、病史或用药信息。对话会保存到演示服务，并发送给所配置的 AI 服务处理。
+        </aside>
+      )}
 
       {alert && (
         <StatusBanner
@@ -773,6 +805,19 @@ export default function App() {
                   <div className="msg-avatar">{m.role === 'user' ? '你' : 'AI'}</div>
                   <div className="msg-col">
                     <div className="msg-bubble">{cleanMd(m.content)}</div>
+                    {m.citations && m.citations.length > 0 && (
+                      <details className="chat-citations">
+                        <summary>参考来源（{m.citations.length}）</summary>
+                        <ul>
+                          {m.citations.map((citation, citationIndex) => (
+                            <li key={`${citation.source}-${citationIndex}`}>
+                              <strong>{citation.source}</strong>
+                              <span>{citation.text}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
                     <div className="msg-acts">
                       <button className="msg-act-btn" onClick={() => navigator.clipboard.writeText(cleanMd(m.content))}>📋 复制</button>
                       {m.role === 'user' ? (

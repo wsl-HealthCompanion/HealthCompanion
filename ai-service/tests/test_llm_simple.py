@@ -2,8 +2,11 @@
 Test LLM Factory and DeepSeek Connectivity (ASCII version for Windows)
 """
 import asyncio
+import pytest
 import sys
 sys.path.insert(0, '.')
+
+pytestmark = pytest.mark.integration
 
 from app.llm.factory import get_llm
 

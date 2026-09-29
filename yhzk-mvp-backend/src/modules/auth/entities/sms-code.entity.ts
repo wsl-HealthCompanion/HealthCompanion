@@ -5,6 +5,7 @@ import {
   CreateDateColumn,
   Index,
 } from 'typeorm';
+import { portableDateColumnType } from '../../../common/database/column-types';
 
 /**
  * sms_codes 表 TypeORM Entity
@@ -29,9 +30,9 @@ export class SmsCode {
   used!: boolean;
 
   @Index('idx_sms_expires')
-  @Column({ type: 'timestamp' })
+  @Column({ type: portableDateColumnType })
   expires_at!: Date;
 
-  @CreateDateColumn({ type: 'timestamp' })
+  @CreateDateColumn({ type: portableDateColumnType })
   created_at!: Date;
 }

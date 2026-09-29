@@ -58,6 +58,7 @@ export class ChatController {
         dto.message,
         (dto.type as 'text' | 'quick_reply') || 'text',
         dto.profile, // H5 前端传来的档案
+        dto.skipTts === true,
       );
 
       for await (const event of stream) {
@@ -129,6 +130,7 @@ export class ChatController {
       user.sub, sessionId, dto.message,
       (dto.type as 'text' | 'quick_reply') || 'text',
       dto.profile,
+      dto.skipTts === true,
     );
 
     for await (const event of stream) {

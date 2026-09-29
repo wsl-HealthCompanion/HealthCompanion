@@ -10,6 +10,7 @@ import redis.asyncio as aioredis
 from langchain_core.prompts import ChatPromptTemplate
 from app.llm.factory import get_llm
 from app.rag.retriever import dual_retrieve, format_context_for_llm
+from app.rag.citations import build_citations
 from app.fallback.keyword import fallback_faq
 from app.config import settings
 from app.utils.speech_stream import normalize_speech_piece
@@ -117,9 +118,11 @@ async def knowledge_qa_node(state: dict) -> dict:
 
     try:
         context = ""
+        citations = []
         if settings.rag_enabled:
             docs = await dual_retrieve(question, user_id, k_user=3, k_general=2)
             context = format_context_for_llm(docs)
+            citations = build_citations(docs)
 
         history = state.get("conversation_history", [])
         history_text = "\n".join([
@@ -160,7 +163,7 @@ async def knowledge_qa_node(state: dict) -> dict:
                 "knowledge_qa": {
                     "final_reply": answer,
                     "tts_text": normalize_speech_piece(answer),
-                    "citations": [],
+                    "citations": citations,
                     "quick_replies": [],
                 }
             }

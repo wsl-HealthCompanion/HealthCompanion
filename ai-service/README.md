@@ -54,7 +54,7 @@ uv run uvicorn app.main:app --reload --port 8000
 FastAPI (app/main.py)
   └── LangGraph StateGraph (app/graph/build.py)
         ├─ orchestrator_node (①调度智能体,DeepSeek-V3)
-        ├─ knowledge_qa_node (④知识库问答,DeepSeek-R1 + Milvus RAG)
+        ├─ knowledge_qa_node (④知识库问答,DeepSeek-R1；Milvus RAG 需启用 `RAG_ENABLED=true`，默认关闭)
         └─ [Phase 2] ②③⑤⑥ 节点(暂未启用)
 ```
 

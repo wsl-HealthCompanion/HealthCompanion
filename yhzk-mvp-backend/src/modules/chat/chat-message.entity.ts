@@ -5,6 +5,7 @@ import {
   CreateDateColumn,
   Index,
 } from 'typeorm';
+import { portableDateColumnType } from '../../common/database/column-types';
 
 export enum MessageRole {
   USER = 'user',
@@ -55,6 +56,6 @@ export class ChatMessage {
   @Column({ type: 'text', default: '{}' })
   meta!: Record<string, any>;
 
-  @CreateDateColumn({ type: 'timestamp' })
+  @CreateDateColumn({ type: portableDateColumnType })
   created_at!: Date;
 }

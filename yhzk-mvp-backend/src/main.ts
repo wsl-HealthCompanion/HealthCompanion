@@ -5,9 +5,15 @@ import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
+import { parseTrustedProxyHops } from './common/trusted-proxy';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  app.getHttpAdapter().getInstance().set(
+    'trust proxy',
+    parseTrustedProxyHops(process.env.TRUST_PROXY_HOPS),
+  );
 
   // 全局前缀: /api/v1
   app.setGlobalPrefix('api/v1');
@@ -61,8 +67,10 @@ async function bootstrap() {
   }
 
   const port = process.env.PORT || 3000;
-  await app.listen(port);
-  console.log(`[YHZK-MVP] Server running on http://localhost:${port}`);
+  const host = process.env.HOST;
+  if (host) await app.listen(port, host);
+  else await app.listen(port);
+  console.log(`[YHZK-MVP] Server running on http://${host || 'localhost'}:${port}`);
   console.log(`[YHZK-MVP] API Docs: http://localhost:${port}/api/docs`);
 }
 

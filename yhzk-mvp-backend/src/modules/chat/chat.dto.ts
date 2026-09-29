@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsOptional, IsUUID, IsIn, Length } from 'class-validator';
+import { IsString, IsOptional, IsUUID, IsIn, Length, IsBoolean } from 'class-validator';
 
 // ===== 发送消息请求 =====
 
@@ -21,6 +21,11 @@ export class SendMessageDto {
   @ApiPropertyOptional({ description: '用户档案上下文(小程序传)' })
   @IsOptional()
   profile?: any;
+
+  @ApiPropertyOptional({ description: '跳过服务器端 TTS(客户端自行播报时)' })
+  @IsOptional()
+  @IsBoolean()
+  skipTts?: boolean;
 }
 
 // ===== 会话列表响应 =====

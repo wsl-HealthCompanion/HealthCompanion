@@ -7,6 +7,12 @@ import { AdminUser } from '../../modules/admin-auth/entities/admin-user.entity';
 import { AvatarGenerationTask } from '../../modules/avatar-admin/entities/avatar-generation-task.entity';
 import { DigitalHumanAvatar } from '../../modules/avatar-admin/entities/digital-human-avatar.entity';
 import { UserAvatarAssignment } from '../../modules/avatar-admin/entities/user-avatar-assignment.entity';
+import { User } from '../../modules/auth/entities/user.entity';
+import { SmsCode } from '../../modules/auth/entities/sms-code.entity';
+import { ChatMessage } from '../../modules/chat/chat-message.entity';
+import { ChatSession } from '../../modules/chat/chat-session.entity';
+import { AdvisorMatch } from '../../modules/onboarding/advisor-match.entity';
+import { HealthProfile } from '../../modules/onboarding/health-profile.entity';
 
 const entities = [
   AdminAuditLog,
@@ -17,6 +23,12 @@ const entities = [
   AvatarGenerationTask,
   DigitalHumanAvatar,
   UserAvatarAssignment,
+  User,
+  SmsCode,
+  ChatMessage,
+  ChatSession,
+  AdvisorMatch,
+  HealthProfile,
 ];
 
 const migratedUuidColumns: Array<{

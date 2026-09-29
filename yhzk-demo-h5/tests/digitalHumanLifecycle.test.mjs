@@ -1,28 +1,36 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { exitAuthenticatedSession } from '../src/appSession.ts';
 
 const app = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8');
-const service = readFileSync(
-  new URL('../src/services/digitalHuman.ts', import.meta.url),
-  'utf8',
-);
 
-test('digital human connects only for an authenticated user', () => {
-  assert.match(app, /useEffect\(\(\) => \{\s*if \(!loggedIn\) return;\s*digitalHuman\.connect/);
-  assert.match(app, /\}, \[loggedIn\]\);/);
+test('digital human connects only for an authenticated, onboarded LiveTalking user', () => {
+  assert.match(app, /if \(useXmovAvatar\) \{\s*digitalHuman\.invalidate\(\);[\s\S]*?return;\s*\}/);
+  assert.match(app, /if \(!canConnectDigitalHuman\(DEMO_MODE \? 'demo' : 'production', loggedIn, onboardingDone\)\) \{[\s\S]*?digitalHuman\.invalidate\(\)/);
+  assert.match(app, /const canUseDigitalHuman = canConnectDigitalHuman\(DEMO_MODE \? 'demo' : 'production', loggedIn, onboardingDone\)/);
+  assert.match(app, /const digitalHumanCapabilityReady = useXmovAvatar \|\| !canUseDigitalHuman\s*\? Promise\.resolve\(null\)/);
+  assert.match(app, /digitalHuman\.connect\(\)\.then/);
+  assert.match(app, /\}, \[loggedIn, onboardingDone, useXmovAvatar\]\);/);
 });
 
-test('logout releases the digital human before clearing authentication', () => {
-  const disconnect = app.indexOf('await digitalHuman.disconnect()');
-  const logout = app.indexOf('doLogout();', disconnect);
-  assert.ok(disconnect >= 0);
-  assert.ok(logout > disconnect);
-  assert.match(service, /async disconnect\(\): Promise<void>/);
-  assert.match(service, /postDH\('\/api\/digital-human\/disconnect'/);
+test('logout stops the digital human before clearing authentication', () => {
+  const calls = [];
+  exitAuthenticatedSession({
+    interruptDigitalHuman: () => calls.push('disconnect'),
+    clearAuthentication: () => calls.push('logout'),
+    refreshView: () => calls.push('refresh'),
+    showLogin: () => calls.push('login'),
+  });
+  assert.deepEqual(calls, ['disconnect', 'logout', 'refresh', 'login']);
+  assert.match(app, /clearAuthentication: doLogout/);
+  assert.match(
+    app,
+    /interruptDigitalHuman: \(\) => \{\s*if \(useXmovAvatar\) void xmovAvatar\.interrupt\(\);\s*else void digitalHuman\.disconnect\(\);/,
+  );
 });
 
-test('login restores the saved or newest server-side chat session', () => {
-  assert.match(app, /const restoreSid = lastSid \|\| items\[0\]\?\.sessionId;/);
-  assert.match(app, /if \(restoreSid\) \{ switchSession\(restoreSid\); \}/);
+test('login restores the saved chat session and initializes the newest session otherwise', () => {
+  assert.match(app, /if \(!currentSessionId && items\.length > 0\) \{\s*setCurrentSessionId\(items\[0\]\.sessionId\);/);
+  assert.match(app, /if \(lastSid\) \{ switchSession\(lastSid\); \}/);
 });

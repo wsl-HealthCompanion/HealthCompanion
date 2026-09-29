@@ -2,8 +2,11 @@
 Test Orchestrator Node (Task 2)
 """
 import asyncio
+import pytest
 import sys
 sys.path.insert(0, '.')
+
+pytestmark = pytest.mark.integration
 
 from app.graph.nodes.orchestrator import orchestrator_node
 

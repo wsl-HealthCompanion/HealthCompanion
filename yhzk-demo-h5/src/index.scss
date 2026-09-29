@@ -309,6 +309,17 @@ body.care-mode .app-header {
 .msg-bubble.thinking i:nth-child(3) { animation-delay: .30s; }
 /* 消息操作按钮 */
 .msg-acts { display: flex; gap: 6px; margin-top: 4px; padding: 0 2px; }
+.chat-citations {
+  margin: 8px 2px 4px;
+  color: var(--text-sub);
+  font-size: 12px;
+}
+.chat-citations summary { cursor: pointer; color: var(--brand-dark); }
+.chat-citations ul { margin: 6px 0 0; padding-left: 18px; }
+.chat-citations li { margin-top: 6px; }
+.chat-citations strong,
+.chat-citations span { display: block; }
+.chat-citations span { margin-top: 2px; line-height: 1.5; }
 .msg-act-btn {
   border: none; background: none; color: #bbb; font-size: 12px;
   cursor: pointer; font-family: inherit; padding: 2px 6px; border-radius: 4px;
@@ -1083,4 +1094,14 @@ body.care-mode .app-header {
   }
   .input-field { height: 42px; font-size: 15px; padding: 0 14px; }
   .input-send { width: 42px; height: 42px; font-size: 18px; }
+}
+.demo-privacy-notice {
+  margin: 0.75rem 1rem;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid #f0d58a;
+  border-radius: 0.5rem;
+  background: #fff9e8;
+  color: #624b12;
+  font-size: 0.875rem;
+  line-height: 1.5;
 }

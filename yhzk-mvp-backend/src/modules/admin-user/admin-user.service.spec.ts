@@ -105,6 +105,9 @@ describe('AdminUserService', () => {
       status: UserStatus.REGISTERED,
       isElderly: false,
       careMode: false,
+      accountState: 'enabled',
+      disabledAt: null,
+      deletedAt: null,
       createdAt: '2026-08-12T08:00:00.000Z',
       lastLoginAt: null,
     });
@@ -147,6 +150,9 @@ describe('AdminUserService', () => {
       status: UserStatus.PROFILED,
       isElderly: true,
       careMode: true,
+      accountState: 'enabled',
+      disabledAt: null,
+      deletedAt: null,
       createdAt: '2026-08-10T08:00:00.000Z',
       lastLoginAt: '2026-08-11T08:00:00.000Z',
     });
