@@ -170,6 +170,14 @@ class XmovAvatarBridge {
     });
   }
 
+  async playAction(semantic: string): Promise<void> {
+    const provider = this.provider;
+    if (!provider || !this.ready) {
+      throw new Error('XmovAvatar is not ready');
+    }
+    await provider.playAction(semantic);
+  }
+
   async interrupt(): Promise<void> {
     this.generation += 1;
     this.round = null;
