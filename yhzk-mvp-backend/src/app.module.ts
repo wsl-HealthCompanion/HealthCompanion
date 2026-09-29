@@ -18,6 +18,7 @@ import { AdminAuthModule } from './modules/admin-auth/admin-auth.module';
 import { AvatarAdminModule } from './modules/avatar-admin/avatar-admin.module';
 import { AdminUserModule } from './modules/admin-user/admin-user.module';
 import { DigitalHumanModule } from './modules/digital-human/digital-human.module';
+import { XmovActionsModule } from './modules/xmov-actions/xmov-actions.module';
 import { HealthController } from './health/health.controller';
 
 @Module({
