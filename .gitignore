@@ -9,6 +9,8 @@ coverage/
 .env
 .env.*
 !.env.example
+!yhzk-demo-h5/demo-env/
+!yhzk-demo-h5/demo-env/.env.demo
 
 # archives & model weights (not for git)
 *.tar.gz

@@ -6,8 +6,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host",
+    "dev:demo": "node scripts/run-vite-demo.mjs dev",
     "dev:xmov": "vite --host --open /xmov-task1.html",
     "build": "tsc && vite build",
+    "build:demo": "tsc && node scripts/run-vite-demo.mjs build",
     "test": "node --experimental-strip-types --test tests/*.test.mjs",
     "preview": "vite preview --host"
   },
