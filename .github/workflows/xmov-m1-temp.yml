@@ -1,4 +1,5 @@
 name: Xmov M1.3 Task 2 Verification
+# rerun: scoped Action Lab suite
 
 on:
   push:
