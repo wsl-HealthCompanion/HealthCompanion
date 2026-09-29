@@ -211,6 +211,21 @@ interface ActionRegistryEntry {
 - 走 speech / idle 等 fallback；
 - 不虚构动作。
 
+#### 2026-09-30 真实账号动作验证
+
+真实 KA 列表共返回 94 个动作，列表均无图片或视频预览资源。Action Lab 中逐个点击并查看数字人录屏后，以下动作有可见动作画面：
+
+| businessKey | verified semantic | 画面观察 |
+| --- | --- | --- |
+| `acknowledge` | `Nod` | 低头并抬手至胸前；不是单纯头部点动 |
+| `encourage` | `skill_like` | 抬手竖拇指 |
+| `show_direction` | `LeftSide` | 向数字人左侧伸手指示 |
+| `warm_up` | `daoyou_Hello01` | 活泼打招呼，双手抬起 |
+| `confirm` | `Nod` | 复用已验证的肯定动作 |
+| `fallback` | `null` | 未映射 KA，沿用语音/待机回退 |
+
+另外，`Bow`、`Surprise`、`daoyou_ClapHands02` 也出现可见动作，但当前业务映射不依赖它们。页面初始化到互动待机正常；动作执行后 SDK 的消息回调在 UI 显示 `[object Object]`，控制台还出现 WebSocket 提前关闭和 WebGL closed `VideoFrame` 警告。上述映射依据录屏中的实际动作画面确认；SDK 回调/传输告警仍须单独处理，不能以 Promise resolve 代替视觉验收。
+
 ### M1.6 — Final Verification
 
 Milestone 1 PASS 需要满足：
