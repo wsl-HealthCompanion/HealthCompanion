@@ -42,6 +42,15 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    rollupOptions: {
+      input: [
+        'index.html',
+        'xmov-task1.html',
+        'xmov-action-lab.html',
+      ],
+    },
+  },
   preview: {
     host: true,
     port: 5273,
