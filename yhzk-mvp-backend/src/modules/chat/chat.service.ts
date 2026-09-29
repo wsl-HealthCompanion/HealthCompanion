@@ -38,6 +38,17 @@ import {
   ChatMessagesResponseDto,
 } from './chat.dto';
 
+function parseCitations(value: unknown): Citation[] | undefined {
+  if (Array.isArray(value)) return value as Citation[];
+  if (typeof value !== 'string') return undefined;
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed as Citation[] : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 @Injectable()
 export class ChatService {
   private readonly logger = new Logger(ChatService.name);
@@ -71,6 +82,7 @@ export class ChatService {
     message: string,
     messageType: 'text' | 'quick_reply' = 'text',
     frontendProfile?: Record<string, any>, // H5 前端传来的档案
+    skipTts = false,
   ): AsyncGenerator<SSEEvent> {
     const now = () => Date.now();
 
@@ -120,7 +132,7 @@ export class ChatService {
 
       if (pythonHealthy) {
         this.logger.log(`User ${userId} routed to Python AI`);
-        yield* this.processPythonAI(userId, session, message, messageType, userContext, history);
+        yield* this.processPythonAI(userId, session, message, messageType, userContext, history, skipTts);
         return;
       } else {
         this.logger.warn(`Python AI unhealthy, falling back to legacy for user ${userId}`);
@@ -162,10 +174,12 @@ export class ChatService {
     // 9. TTS + Viseme (异步，不阻塞响应 — 小程序用 LiveTalking TTS，不用这里的)
     let audioUrl: string | null = null;
     let visemeTimeline: any[] = [];
-    this.ttsService.synthesize(finalReply).then(ttsResult => {
-      audioUrl = ttsResult.audioUrl;
-      visemeTimeline = ttsResult.visemeTimeline;
-    }).catch(err => { this.logger.warn(`TTS failed: ${err}`); });
+    if (!skipTts) {
+      this.ttsService.synthesize(finalReply).then(ttsResult => {
+        audioUrl = ttsResult.audioUrl;
+        visemeTimeline = ttsResult.visemeTimeline;
+      }).catch(err => { this.logger.warn(`TTS failed: ${err}`); });
+    }
 
     // 10. 引用来源
     if (citations.length > 0) {
@@ -290,7 +304,7 @@ export class ChatService {
       role: m.role,
       content: m.content,
       intent: m.intent || undefined,
-      citations: m.citations || undefined,
+      citations: parseCitations(m.citations),
       createdAt: m.created_at.toISOString(),
     }));
 
@@ -698,11 +712,13 @@ export class ChatService {
     messageType: 'text' | 'quick_reply',
     userContext: UserContext,
     history: Message[],
+    skipTts = false,
   ): AsyncGenerator<SSEEvent> {
     const now = () => Date.now();
     let accumulatedReply = '';
     let lastIntent: string | undefined;
     let lastEmotion = 'neutral';
+    const citations: Citation[] = [];
 
     // L2 中期记忆 — 加载最近摘要注入上下文
     const recentMemories = await this.loadSessionMemories(session.session_id);
@@ -734,6 +750,10 @@ export class ChatService {
           lastIntent = event.intent || lastIntent;
         }
 
+        if (event.type === 'citation') {
+          citations.push({ source: event.source, text: event.text });
+        }
+
         // 透传所有事件给小程序(除了done,稍后补充TTS后再发)
         if (event.type !== 'done') {
           yield event;
@@ -744,7 +764,7 @@ export class ChatService {
       let audioUrl: string | null = null;
       let visemeTimeline: any[] = [];
 
-      if (accumulatedReply) {
+      if (!skipTts && accumulatedReply) {
         try {
           const ttsResult = await this.ttsService.synthesize(accumulatedReply);
           audioUrl = ttsResult.audioUrl;
@@ -774,6 +794,7 @@ export class ChatService {
         role: MessageRole.ASSISTANT,
         content: accumulatedReply,
         intent: lastIntent,
+        citations: citations.length ? JSON.stringify(citations) : null,
         tts_url: audioUrl,
         viseme_data: visemeTimeline as any,
       });

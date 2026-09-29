@@ -75,10 +75,10 @@ ai-service/
 **文件**: `app/graph/nodes/knowledge_qa.py`
 
 **功能**:
-- ✅ RAG检索 (user_knowledge + medical_knowledge 双库并行)
+- ✅ RAG检索 (启用 `RAG_ENABLED=true` 后，user_knowledge + medical_knowledge 双库并行；默认关闭)
 - ✅ 上下文拼接 (格式化为LLM prompt)
 - ✅ DeepSeek-R1生成答案 (80字以内,通俗易懂)
-- ✅ 引用来源标注 (citations)
+- ✅ RAG 命中时生成并展示引用来源 (需启用 `RAG_ENABLED=true` 且检索到带来源信息的文档；默认关闭 RAG 时不会有引用)
 - ✅ TTS文本生成 (去标点,更口语化)
 - ✅ 快捷回复生成 (quick_replies)
 

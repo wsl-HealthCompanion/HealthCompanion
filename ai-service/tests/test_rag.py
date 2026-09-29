@@ -3,7 +3,10 @@
 验证与现有 NestJS rag.service.ts 结果一致性
 """
 import asyncio
+import pytest
 import sys
+
+pytestmark = pytest.mark.integration
 
 from app.rag.retriever import dual_retrieve, format_context_for_llm
 from app.rag.embeddings import QwenEmbeddings

@@ -10,6 +10,7 @@ function readEnv(name: keyof ImportMetaEnv): string {
 
 export const XMOV_CONFIG = {
   appId: readEnv('VITE_XMOV_APP_ID'),
+  // The browser SDK requires appSecret in its constructor; VITE_* values are public in the built bundle.
   appSecret: readEnv('VITE_XMOV_APP_SECRET'),
   sdkUrl: readEnv('VITE_XMOV_SDK_URL') || DEFAULT_SDK_URL,
   gatewayServer: readEnv('VITE_XMOV_GATEWAY_URL') || DEFAULT_GATEWAY_URL,

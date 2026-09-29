@@ -8,6 +8,7 @@
     "dev": "vite --host",
     "dev:xmov": "vite --host --open /xmov-task1.html",
     "build": "tsc && vite build",
+    "test": "node --experimental-strip-types --test tests/*.test.mjs",
     "preview": "vite preview --host"
   },
   "dependencies": {

@@ -184,6 +184,18 @@ async def chat_stream(req: ChatRequest):
                 }
                 speech_chunk_index += 1
 
+            qa_output = final_state.get("agent_outputs", {}).get("knowledge_qa", {})
+            for citation in qa_output.get("citations", []):
+                yield {
+                    "event": "message",
+                    "data": json.dumps({
+                        "type": "citation",
+                        "source": citation.get("source", "知识库"),
+                        "text": citation.get("text", ""),
+                        "timestamp": now()
+                    })
+                }
+
             # 4.2 快捷回复
             quick_replies = []
             if final_state.get("agent_outputs", {}).get("knowledge_qa"):

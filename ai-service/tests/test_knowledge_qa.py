@@ -2,8 +2,11 @@
 Test Knowledge QA Node (Task 3)
 """
 import asyncio
+import pytest
 import sys
 sys.path.insert(0, '.')
+
+pytestmark = pytest.mark.integration
 
 from app.graph.nodes.knowledge_qa import knowledge_qa_node
 

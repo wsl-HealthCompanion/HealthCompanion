@@ -3,6 +3,9 @@
 验证 API key 有效,模型能正常调用
 """
 import asyncio
+import pytest
+
+pytestmark = pytest.mark.integration
 from app.llm.factory import get_llm
 
 

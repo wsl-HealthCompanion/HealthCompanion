@@ -3,8 +3,11 @@ Test LangGraph Integration (Task 4)
 Complete flow: orchestrator -> knowledge_qa
 """
 import asyncio
+import pytest
 import sys
 sys.path.insert(0, '.')
+
+pytestmark = pytest.mark.integration
 
 from app.graph.build import get_graph
 

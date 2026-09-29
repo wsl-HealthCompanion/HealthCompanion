@@ -8,10 +8,16 @@ export type PlayerStatus = 'idle' | 'connecting' | 'live' | 'error';
 
 export type DHState = 'loading' | 'ready' | 'thinking' | 'speaking';
 
+export interface ChatCitation {
+  source: string;
+  text: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  citations?: ChatCitation[];
 }
 
 export interface QuickReply {

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   computeSubtitleDelayMs,
   normalizeSubtitleSegments,
-} from '../.tmp-test/subtitleSync.js';
+} from '../src/services/subtitleSync.ts';
 
 test('subtitle delay follows the current media buffer without exceeding safety bounds', () => {
   assert.equal(computeSubtitleDelayMs(0), 80);

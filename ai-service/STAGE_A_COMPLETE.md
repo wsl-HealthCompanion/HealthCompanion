@@ -19,7 +19,7 @@
 
 ### 任务3:④知识库问答节点 ✓ (2小时)
 - **文件**: `app/graph/nodes/knowledge_qa.py`
-- **功能**: RAG检索(双库并行) + DeepSeek-R1生成答案
+- **功能**: DeepSeek-R1生成答案；RAG双库检索需启用 `RAG_ENABLED=true` 并连接已有数据的 Milvus (默认关闭)
 - **验收**: 能生成答案(Milvus不可用时降级到FAQ)
 - **测试**: `tests/test_knowledge_qa.py` — PASS (2/2)
 

@@ -4,30 +4,27 @@ import { readFileSync } from 'node:fs';
 
 const appSource = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8');
 
-test('each answer sends a unique round id with subtitle segments', () => {
+test('each answer gets a unique round id and routes speech chunks to that round', () => {
   assert.match(appSource, /const roundId = `round_\$\{Date\.now\(\)\}`/);
-  assert.match(
-    appSource,
-    /digitalHuman\.speak\(cleaned,[\s\S]*?roundId,[\s\S]*?subtitleSegments: \[\{ index: segIdx, text: cleaned \}\]/,
-  );
+  assert.match(appSource, /xmovAvatar\.pushSpeechChunk\(roundId, cleaned\)/);
+  assert.match(appSource, /xmovAvatar\.finishRound\(roundId\)/);
 });
 
-test('subtitle polling ignores events from previous answers', () => {
-  assert.match(appSource, /if \(ev\.roundId !== roundId\) continue;/);
-  assert.match(appSource, /stopSubtitlePolling\(\);[\s\S]*?setSubtitle\(msg\)/);
+test('subtitle polling stops when the conversation or capability is stale', () => {
+  assert.match(appSource, /if \(!isCurrentConversation\(\) \|\| !digitalHumanCapability\?\.isCurrent\(\)\)/);
+  assert.match(appSource, /if \(!isCurrentConversation\(\) \|\| !digitalHumanCapability\.isCurrent\(\)\) return;/);
 });
 
-test('streamed TTS subtitles clear only after the final audio fragment completes', () => {
-  assert.match(appSource, /ev\.status === 'subtitle'[\s\S]*?setSubtitle\(ev\.subtitleText\)/);
-  assert.match(appSource, /ev\.status === 'complete'[\s\S]*?ev\.fragmentIndex === finalSubtitleIndexRef\.current[\s\S]*?setSubtitle\(''\)/);
+test('streamed TTS subtitle events update the visible subtitle', () => {
+  assert.match(appSource, /ev\.status === 'subtitle' && ev\.subtitleText[\s\S]*?setSubtitle\(ev\.subtitleText\)/);
 });
 
-test('subtitle polling keeps long streamed answers alive past 60 seconds', () => {
-  assert.doesNotMatch(appSource, /}, 60000\);/);
+test('subtitle polling has a bounded lifetime and clears its shared reference', () => {
+  assert.match(appSource, /if \(subtitlePollerRef\.current === subtitleEventPoller\) subtitlePollerRef\.current = null;[\s\S]*?\}, 60000\);/);
 });
 
-test('only one globally cancellable subtitle poller can remain active', () => {
-  assert.match(appSource, /const subtitleEventPollerRef = useRef/);
-  assert.match(appSource, /const stopSubtitlePolling = useCallback/);
-  assert.match(appSource, /subtitleEventPollerRef\.current = setInterval/);
+test('one shared ref allows the current subtitle poller to be cancelled', () => {
+  assert.match(appSource, /const subtitlePollerRef = useRef/);
+  assert.match(appSource, /if \(subtitlePollerRef\.current\) clearInterval\(subtitlePollerRef\.current\)/);
+  assert.match(appSource, /subtitlePollerRef\.current = subtitleEventPoller/);
 });

@@ -24,7 +24,7 @@ import { saveProfileToBackend, loadProfileFromBackend } from './services/user';
 import { exitAuthenticatedSession } from './appSession';
 import { getGreeting, getPresetQuestions } from './presetProfile';
 import type { PresetProfile } from './presetProfile';
-import type { ChatMessage, Emotion } from './types';
+import type { ChatCitation, ChatMessage, Emotion } from './types';
 import './index.scss';
 
 type DhStatus = 'idle' | 'thinking' | 'speaking';
@@ -269,6 +269,7 @@ export default function App() {
       id: m.id || `m_${i}`,
       role: m.role as 'user' | 'assistant',
       content: m.content,
+      citations: m.citations,
     })));
     // 切到对话Tab
     setActiveTab('chat');
@@ -387,6 +388,7 @@ export default function App() {
     contentRef.current = '';
 
     let aiEmotion: Emotion = 'neutral';
+    let responseCitations: ChatCitation[] = [];
     let fallbackSpeechBuffer = '';
     let nextSubtitleIdx = 0;
     let speechChunkMode = false;
@@ -478,7 +480,7 @@ export default function App() {
 
     try {
       const result = await streamChat(
-        { message: msg, sessionId: currentSessionId || sessionId, profile: profile.profileData },
+        { message: msg, sessionId: currentSessionId || sessionId, profile: profile.profileData, skipTts: true },
         {
           onToken: (char) => {
             if (!isCurrentConversation()) return;
@@ -496,8 +498,12 @@ export default function App() {
             if (isCurrentConversation()) handleSpeechChunk(text);
           },
           onEmotion: (e) => { if (isCurrentConversation()) { aiEmotion = e; setEmotion(e); } },
+          onCitation: (citation) => {
+            if (isCurrentConversation()) responseCitations.push(citation);
+          },
           onDone: (sid) => {
             if (!isCurrentConversation()) return;
+            if (useXmovAvatar) xmovAvatar.finishRound(roundId);
             if (sid) {
               if (!currentSessionId) { setCurrentSessionId(sid); localStorage.setItem(`yhzk_last_session_${getUid()}`, sid); }
               if (!sessionId) setSessionId(sid);
@@ -511,11 +517,12 @@ export default function App() {
 
       if (!result.streamed) {
         const json = await sendChatJson(
-          { message: msg, sessionId, profile: profile.profileData },
+          { message: msg, sessionId, profile: profile.profileData, skipTts: true },
           conversationAbort.signal,
         );
         if (!isCurrentConversation()) return;
         aiEmotion = json.emotion;
+        responseCitations = json.citations;
         setEmotion(json.emotion);
         if (json.sessionId) {
           if (!currentSessionId) { setCurrentSessionId(json.sessionId); localStorage.setItem(`yhzk_last_session_${getUid()}`, json.sessionId); }
@@ -548,7 +555,12 @@ export default function App() {
 
     const finalContent = contentRef.current || '抱歉，我暂时无法回答，请稍后再试。';
     cancelStreamFlush();
-    setMessages(prev => [...prev, { id: `a_${Date.now()}`, role: 'assistant', content: finalContent }]);
+    setMessages(prev => [...prev, {
+      id: `a_${Date.now()}`,
+      role: 'assistant',
+      content: finalContent,
+      citations: responseCitations,
+    }]);
     setTimeout(() => {
       if (conversationGenerationRef.current === conversationGeneration) setStatus('idle');
     }, 1500);
@@ -773,6 +785,19 @@ export default function App() {
                   <div className="msg-avatar">{m.role === 'user' ? '你' : 'AI'}</div>
                   <div className="msg-col">
                     <div className="msg-bubble">{cleanMd(m.content)}</div>
+                    {m.citations && m.citations.length > 0 && (
+                      <details className="chat-citations">
+                        <summary>参考来源（{m.citations.length}）</summary>
+                        <ul>
+                          {m.citations.map((citation, citationIndex) => (
+                            <li key={`${citation.source}-${citationIndex}`}>
+                              <strong>{citation.source}</strong>
+                              <span>{citation.text}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
                     <div className="msg-acts">
                       <button className="msg-act-btn" onClick={() => navigator.clipboard.writeText(cleanMd(m.content))}>📋 复制</button>
                       {m.role === 'user' ? (
