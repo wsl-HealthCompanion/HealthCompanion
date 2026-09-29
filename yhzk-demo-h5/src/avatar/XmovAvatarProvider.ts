@@ -1,8 +1,14 @@
 import { loadXmovSdk } from './loadXmovSdk';
 import { XMOV_CONFIG, getXmovConfigProblem } from './xmovConfig';
+import {
+  isExpressionSsmlEnabled,
+  renderSsml,
+  type ExpressionPlan,
+} from './expressionPlanner';
 import type {
   XmovAvatarInstance,
   XmovAvatarRuntimeState,
+  XmovAvatarSpeakExtra,
 } from './types';
 
 export interface XmovAvatarProviderEvents {
@@ -11,22 +17,8 @@ export interface XmovAvatarProviderEvents {
   onDownloadProgress?: (progress: number) => void;
   onError?: (error: Error) => void;
   onWidgetEvent?: (event: unknown) => void;
-}
-
-function escapeXml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/\"/g, '&quot;')
-    .replace(/'/g, '&apos;');
-}
-
-function toSsml(text: string): string {
-  const trimmed = text.trim();
-  if (!trimmed) return '<speak></speak>';
-  if (/^<speak(?:\s|>)/i.test(trimmed)) return trimmed;
-  return `<speak>${escapeXml(trimmed)}</speak>`;
+  /** Task 3：表达计划应用时通知（用于 UI 展示当前表情/动作语义） */
+  onExpressionChange?: (plan: ExpressionPlan) => void;
 }
 
 function normalizeState(raw: string): XmovAvatarRuntimeState {
@@ -42,6 +34,8 @@ function normalizeState(raw: string): XmovAvatarRuntimeState {
 export class XmovAvatarProvider {
   private instance: XmovAvatarInstance | null = null;
   private state: XmovAvatarRuntimeState = 'unconfigured';
+  /** 当前轮的表达计划（Task 3，由 bridge 在 intent 到达时写入） */
+  private plan: ExpressionPlan | null = null;
   private readonly events: XmovAvatarProviderEvents;
 
   constructor(events: XmovAvatarProviderEvents = {}) {
@@ -161,12 +155,31 @@ export class XmovAvatarProvider {
     const normalized = text.trim();
     if (!normalized && !isEnd) return;
     this.setState('speaking');
+    const ssmlEnabled = isExpressionSsmlEnabled();
+    const extra: XmovAvatarSpeakExtra = { client_speak_id: clientSpeakId };
+    if (ssmlEnabled && this.plan) {
+      if (this.plan.facialEmotion !== 'neutral') extra.xmov_facial_emotion = this.plan.facialEmotion;
+      if (this.plan.action) extra.xmov_action = this.plan.action;
+    }
     await this.instance?.speak?.(
-      normalized ? toSsml(normalized) : '<speak></speak>',
+      normalized ? renderSsml(normalized, this.plan, ssmlEnabled) : '<speak></speak>',
       isStart,
       isEnd,
-      { client_speak_id: clientSpeakId },
+      extra,
     );
+  }
+
+  /**
+   * Task 3：应用本轮表达计划。
+   * 纯本地记录 + 事件通知（SDK 无本地表情 API；风格经 speak 的 SSML/extra 透传网关）。
+   */
+  applyExpression(plan: ExpressionPlan): void {
+    this.plan = plan;
+    this.events.onExpressionChange?.(plan);
+  }
+
+  getExpression(): ExpressionPlan | null {
+    return this.plan;
   }
 
   async interrupt(): Promise<void> {
@@ -178,6 +191,7 @@ export class XmovAvatarProvider {
   async destroy(): Promise<void> {
     const instance = this.instance;
     this.instance = null;
+    this.plan = null;
     if (instance) {
       try {
         await instance.destroy?.('user');

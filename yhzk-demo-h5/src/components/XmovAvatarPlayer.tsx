@@ -5,11 +5,18 @@ import {
   getXmovConfigProblem,
   hasXmovCredentials,
 } from '../avatar/xmovConfig';
+import type { ExpressionPlan } from '../avatar/expressionPlanner';
 import type { XmovAvatarRuntimeState } from '../avatar/types';
 import { xmovAvatar } from '../services/xmovAvatar';
 import './XmovAvatarPlayer.scss';
 
 const TASK1_SPEAK_TEXT = '你好，我是康伴智生，你的具身AI健康陪伴助手。';
+
+const EXPRESSION_LABELS: Record<string, string> = {
+  happy: '轻快',
+  concerned: '关切',
+  sad: '温和低缓',
+};
 
 function stateLabel(state: XmovAvatarRuntimeState): string {
   const labels: Record<XmovAvatarRuntimeState, string> = {
@@ -44,6 +51,7 @@ export default function XmovAvatarPlayer({
   );
   const providerRef = useRef<XmovAvatarProvider | null>(null);
   const [state, setState] = useState<XmovAvatarRuntimeState>('unconfigured');
+  const [expression, setExpression] = useState<ExpressionPlan | null>(null);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState('');
   const [busyAction, setBusyAction] = useState('');
@@ -59,6 +67,9 @@ export default function XmovAvatarPlayer({
       },
       onError: (nextError) => {
         if (mounted) setError(nextError.message);
+      },
+      onExpressionChange: (plan) => {
+        if (mounted) setExpression(plan);
       },
     });
     providerRef.current = provider;
@@ -107,6 +118,12 @@ export default function XmovAvatarPlayer({
       <div className="xmov-status">
         <span className={`xmov-status-dot state-${state}`} />
         <span>{stateLabel(state)}</span>
+        {expression && expression.facialEmotion !== 'neutral' && (
+          <span className="xmov-expr" title={`emotion=${expression.emotion} intent=${expression.intent}`}>
+            {EXPRESSION_LABELS[expression.facialEmotion] || expression.facialEmotion}
+            {expression.action ? ` · ${expression.action}` : ''}
+          </span>
+        )}
         {(state === 'loading-sdk' || state === 'initializing') && progress > 0 && (
           <span className="xmov-progress">{progress}%</span>
         )}
