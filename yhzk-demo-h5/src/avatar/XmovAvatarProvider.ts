@@ -1,4 +1,5 @@
 import { loadXmovSdk } from './loadXmovSdk';
+import { buildXmovKaSsml } from './xmovKa';
 import { XMOV_CONFIG, getXmovConfigProblem } from './xmovConfig';
 import {
   isExpressionSsmlEnabled,
@@ -166,6 +167,20 @@ export class XmovAvatarProvider {
       isStart,
       isEnd,
       extra,
+    );
+  }
+
+  async playAction(
+    semantic: string,
+    clientSpeakId = `xmov_ka_${Date.now()}`,
+  ): Promise<void> {
+    this.requireInstance();
+    this.setState('speaking');
+    await this.instance?.speak?.(
+      buildXmovKaSsml(semantic),
+      true,
+      true,
+      { client_speak_id: clientSpeakId },
     );
   }
 
