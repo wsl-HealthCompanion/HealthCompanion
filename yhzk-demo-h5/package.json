@@ -9,7 +9,8 @@
     "dev:xmov": "vite --host --open /xmov-task1.html",
     "build": "tsc && vite build",
     "preview": "vite preview --host",
-    "test:xmov-action-lab": "vitest run src/avatar/xmovActions.spec.ts src/components/XmovActionLabPage.spec.tsx"
+    "test:xmov-action-lab": "vitest run src/avatar/xmovActions.spec.ts src/components/XmovActionLabPage.spec.tsx",
+    "dev:xmov-actions": "vite --host --open /xmov-action-lab.html"
   },
   "dependencies": {
     "flv.js": "^1.6.2",
