@@ -1,13 +1,12 @@
-name: M2.1 Task 2 Adapter RED
+name: M2.1 Task 3 Diagnostics RED
 
 on:
   push:
     branches:
       - feat/pose-shoulder-loop
     paths:
-      - 'yhzk-demo-h5/src/pose/poseLandmarkerAdapter.spec.ts'
-      - 'yhzk-demo-h5/src/pose/poseLandmarkerAdapter.ts'
-      - 'yhzk-demo-h5/src/pose/poseConfig.ts'
+      - 'yhzk-demo-h5/src/pose/poseProbeDiagnostics.spec.ts'
+      - 'yhzk-demo-h5/src/pose/poseProbeDiagnostics.ts'
       - '.github/workflows/m2-temp.yml'
 
 permissions:
@@ -30,5 +29,5 @@ jobs:
           cache-dependency-path: yhzk-demo-h5/package-lock.json
       - name: Install dependencies
         run: npm ci
-      - name: Run Pose adapter spec
-        run: npx vitest run src/pose/poseLandmarkerAdapter.spec.ts
+      - name: Run diagnostics spec
+        run: npx vitest run src/pose/poseProbeDiagnostics.spec.ts
