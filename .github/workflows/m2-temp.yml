@@ -1,0 +1,31 @@
+name: M2.1 Final Review RED
+
+on:
+  push:
+    branches:
+      - feat/pose-shoulder-loop
+    paths:
+      - '.github/workflows/m2-temp.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: yhzk-demo-h5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: yhzk-demo-h5/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Run final-review regression specs
+        run: npx vitest run src/pose/cameraSession.spec.ts src/pose/poseProbeLoop.spec.ts
