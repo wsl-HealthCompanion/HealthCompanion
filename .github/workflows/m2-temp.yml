@@ -1,19 +1,17 @@
-name: M2.1 Task 5 Pose Lab RED
+name: M2.1 Final Verification
 
 on:
   push:
     branches:
       - feat/pose-shoulder-loop
     paths:
-      - 'yhzk-demo-h5/src/components/PoseLabPage.spec.tsx'
-      - 'yhzk-demo-h5/src/components/PoseLabPage.tsx'
       - '.github/workflows/m2-temp.yml'
 
 permissions:
   contents: read
 
 jobs:
-  test:
+  verify:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -29,5 +27,15 @@ jobs:
           cache-dependency-path: yhzk-demo-h5/package-lock.json
       - name: Install dependencies
         run: npm ci
-      - name: Run Pose Lab view spec
-        run: npx vitest run src/components/PoseLabPage.spec.tsx
+      - name: Run Pose Lab tests
+        run: npm run test:pose-lab
+      - name: Run M1 Action Lab regression
+        run: npm run test:xmov-action-lab
+      - name: Build frontend
+        run: npm run build
+      - name: Verify production pages
+        run: |
+          test -f dist/index.html
+          test -f dist/xmov-task1.html
+          test -f dist/xmov-action-lab.html
+          test -f dist/pose-lab.html
