@@ -1,12 +1,12 @@
-name: M2.1 Task 3 Diagnostics RED
+name: M2.1 Task 4 Probe Loop RED
 
 on:
   push:
     branches:
       - feat/pose-shoulder-loop
     paths:
-      - 'yhzk-demo-h5/src/pose/poseProbeDiagnostics.spec.ts'
-      - 'yhzk-demo-h5/src/pose/poseProbeDiagnostics.ts'
+      - 'yhzk-demo-h5/src/pose/poseProbeLoop.spec.ts'
+      - 'yhzk-demo-h5/src/pose/poseProbeLoop.ts'
       - '.github/workflows/m2-temp.yml'
 
 permissions:
@@ -29,5 +29,5 @@ jobs:
           cache-dependency-path: yhzk-demo-h5/package-lock.json
       - name: Install dependencies
         run: npm ci
-      - name: Run diagnostics spec
-        run: npx vitest run src/pose/poseProbeDiagnostics.spec.ts
+      - name: Run pose probe loop spec
+        run: npx vitest run src/pose/poseProbeLoop.spec.ts
