@@ -32,6 +32,7 @@ export class PoseProbeLoop {
 
   private lastInferenceAt = Number.NEGATIVE_INFINITY;
   private lastVideoTime: number | null = null;
+  private lastMediaTimestampMs = Number.NEGATIVE_INFINITY;
   private skippedFrames = 0;
   private inferenceTimes: number[] = [];
 
@@ -120,9 +121,13 @@ export class PoseProbeLoop {
     }
 
     try {
-      const timestampMs = videoTime * 1000;
+      const rawTimestampMs = videoTime * 1000;
+      const timestampMs = Number.isFinite(this.lastMediaTimestampMs)
+        ? Math.max(rawTimestampMs, this.lastMediaTimestampMs + 0.001)
+        : rawTimestampMs;
       const frame = this.adapter.detect(this.video, timestampMs);
 
+      this.lastMediaTimestampMs = timestampMs;
       this.lastInferenceAt = now;
       this.lastVideoTime = videoTime;
       this.inferenceTimes.push(now);
