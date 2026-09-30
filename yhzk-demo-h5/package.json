@@ -14,6 +14,7 @@
     "test:pose-lab": "vitest run src/pose/cameraSession.spec.ts src/pose/poseLandmarkerAdapter.spec.ts src/pose/poseProbeDiagnostics.spec.ts src/pose/poseProbeLoop.spec.ts src/components/PoseLabPage.spec.tsx"
   },
   "dependencies": {
+    "@mediapipe/tasks-vision": "1.0.1",
     "flv.js": "^1.6.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
