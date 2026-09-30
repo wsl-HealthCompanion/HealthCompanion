@@ -1,4 +1,4 @@
-name: M2.1 Final Review GREEN
+name: M2.1 Final Verification
 
 on:
   push:
@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  verify:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -27,5 +27,15 @@ jobs:
           cache-dependency-path: yhzk-demo-h5/package-lock.json
       - name: Install dependencies
         run: npm ci
-      - name: Run final-review regression specs
-        run: npx vitest run src/pose/cameraSession.spec.ts src/pose/poseProbeLoop.spec.ts
+      - name: Run Pose Lab tests
+        run: npm run test:pose-lab
+      - name: Run M1 Action Lab regression
+        run: npm run test:xmov-action-lab
+      - name: Build frontend
+        run: npm run build
+      - name: Verify production pages
+        run: |
+          test -f dist/index.html
+          test -f dist/xmov-task1.html
+          test -f dist/xmov-action-lab.html
+          test -f dist/pose-lab.html
