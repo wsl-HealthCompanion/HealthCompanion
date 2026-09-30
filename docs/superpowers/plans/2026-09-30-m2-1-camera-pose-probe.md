@@ -62,6 +62,8 @@ yhzk-demo-h5/
     │   ├── poseConfig.ts
     │   ├── poseLandmarkerAdapter.ts
     │   ├── poseLandmarkerAdapter.spec.ts
+    │   ├── poseProbeDiagnostics.ts
+    │   ├── poseProbeDiagnostics.spec.ts
     │   ├── poseProbeLoop.ts
     │   └── poseProbeLoop.spec.ts
     └── components/
@@ -136,7 +138,7 @@ export interface PoseFrame {
 Add:
 
 ```json
-"test:pose-lab": "vitest run src/pose/cameraSession.spec.ts src/pose/poseLandmarkerAdapter.spec.ts src/pose/poseProbeLoop.spec.ts src/components/PoseLabPage.spec.tsx"
+"test:pose-lab": "vitest run src/pose/cameraSession.spec.ts src/pose/poseLandmarkerAdapter.spec.ts src/pose/poseProbeDiagnostics.spec.ts src/pose/poseProbeLoop.spec.ts src/components/PoseLabPage.spec.tsx"
 ```
 
 The files need not all exist yet; during a task, run the current spec directly with `npx vitest run <file>`.
@@ -343,7 +345,69 @@ git commit -m "feat(pose): add pinned MediaPipe pose adapter"
 
 ---
 
-### Task 3: Throttled Pose probe loop
+### Task 3: Probe diagnostics for M2.2 calibration
+
+**Files:**
+- Create: `yhzk-demo-h5/src/pose/poseProbeDiagnostics.ts`
+- Create: `yhzk-demo-h5/src/pose/poseProbeDiagnostics.spec.ts`
+
+**Interfaces:**
+
+```ts
+export interface PoseProbeDiagnostics {
+  shoulderWidth: number | null;
+  torsoHeight: number | null;
+  upperBodyBox: {
+    xMin: number;
+    yMin: number;
+    xMax: number;
+    yMax: number;
+  } | null;
+}
+
+export function derivePoseProbeDiagnostics(
+  frame: PoseFrame | null,
+): PoseProbeDiagnostics;
+```
+
+- [ ] **Step 1: Write diagnostics RED tests**
+
+Use normalized landmark fixtures and assert:
+
+- null frame returns all-null diagnostics;
+- shoulder width is the 2D Euclidean distance between indices 11 and 12;
+- torso height is the 2D Euclidean distance between shoulder midpoint and hip midpoint (23/24);
+- upper-body bounding box is min/max x/y across required indices 11,12,13,14,15,16,23,24;
+- missing/non-finite required coordinates produce null for the affected diagnostic rather than NaN;
+- no threshold/classification such as too_far/too_close is produced in M2.1.
+
+- [ ] **Step 2: Run diagnostics spec and confirm RED**
+
+```bash
+npx vitest run src/pose/poseProbeDiagnostics.spec.ts
+```
+
+Expected: FAIL because diagnostics helper does not exist.
+
+- [ ] **Step 3: Implement the pure diagnostics helper**
+
+This task only records normalized geometry for later M2.2 calibration. It must not decide whether the person is near/far or whether the pose is correct.
+
+- [ ] **Step 4: Run diagnostics spec and confirm GREEN**
+
+Expected: all diagnostics tests PASS.
+
+- [ ] **Step 5: Commit Task 3**
+
+```bash
+git add yhzk-demo-h5/src/pose/poseProbeDiagnostics.ts \
+        yhzk-demo-h5/src/pose/poseProbeDiagnostics.spec.ts
+git commit -m "feat(pose): add probe calibration diagnostics"
+```
+
+---
+
+### Task 4: Throttled Pose probe loop
 
 **Files:**
 - Create: `yhzk-demo-h5/src/pose/poseProbeLoop.ts`
@@ -421,7 +485,7 @@ Do not introduce a Worker in this task.
 
 Expected: all probe scheduling tests PASS.
 
-- [ ] **Step 5: Commit Task 3**
+- [ ] **Step 5: Commit Task 4**
 
 ```bash
 git add yhzk-demo-h5/src/pose/poseProbeLoop.ts \
@@ -431,7 +495,7 @@ git commit -m "feat(pose): add throttled pose probe loop"
 
 ---
 
-### Task 4: Independent Pose Lab probe page and production entry
+### Task 5: Independent Pose Lab probe page and production entry
 
 **Files:**
 - Create: `yhzk-demo-h5/src/components/PoseLabPage.tsx`
@@ -451,6 +515,7 @@ export interface PoseLabViewState {
   modelStatus: 'idle' | 'loading' | 'ready' | 'error';
   frame: PoseFrame | null;
   stats: PoseProbeStats;
+  diagnostics: PoseProbeDiagnostics;
   error: string;
 }
 
@@ -483,6 +548,8 @@ Using `renderToStaticMarkup`, assert:
   `左肩/右肩/左肘/右肘/左腕/右腕/左髋/右髋`;
 - each label shows visibility rounded to two decimals;
 - stats show inference milliseconds, effective FPS and skipped-frame count;
+- diagnostics show normalized shoulder width, torso height and upper-body bbox when available;
+- diagnostics remain measurements only and contain no near/far classification;
 - `mirroredOverlayX(0.2) === 0.8`;
 - an anatomical left-shoulder fixture remains labelled `左肩` after display mirroring;
 - page contains no shoulder-angle, “姿势正确”, 3-second hold, Xmov or LangGraph controls.
@@ -528,6 +595,28 @@ Lifecycle:
 8. on inference/model error, show error and stop probe scheduling;
 9. Stop Camera stops probe, closes MediaStream tracks, clears `srcObject`, frame and stats;
 10. unmount does the same camera/probe cleanup and also `adapter.close()`.
+
+Export and use these cleanup helpers so teardown is unit-testable without jsdom:
+
+```ts
+export function stopPoseLabRuntime(args: {
+  camera: Pick<CameraSession, 'stop'>;
+  loop: Pick<PoseProbeLoop, 'stop'>;
+  video: { srcObject: MediaStream | null } | null;
+}): void;
+
+export function disposePoseLabRuntime(args: {
+  camera: Pick<CameraSession, 'stop'>;
+  loop: Pick<PoseProbeLoop, 'stop'>;
+  adapter: Pick<PoseLandmarkerAdapter, 'close'> | null;
+  video: { srcObject: MediaStream | null } | null;
+}): void;
+```
+
+Add view/runtime tests proving:
+- Stop Camera calls loop.stop + camera.stop and clears video.srcObject;
+- dispose/unmount additionally calls adapter.close;
+- both helpers are idempotent with null video/adapter.
 
 If MediaPipe initialization fails after camera acquisition, the camera remains explicitly stoppable and the error is shown.
 
@@ -591,7 +680,7 @@ Must not contain:
 - Xmov playback calls;
 - LangGraph changes.
 
-- [ ] **Step 10: Commit Task 4**
+- [ ] **Step 10: Commit Task 5**
 
 ```bash
 git add yhzk-demo-h5
