@@ -211,6 +211,28 @@ describe('PoseProbeLoop', () => {
     expect(h.pendingCount()).toBe(0);
   });
 
+  it('keeps MediaPipe timestamps monotonic across camera restarts', () => {
+    const h = harness();
+    const detect = vi.fn().mockReturnValue(frame());
+    const loop = new PoseProbeLoop({ detect }, h.deps);
+    const firstVideo = { currentTime: 2 } as HTMLVideoElement;
+
+    loop.start(firstVideo, vi.fn(), vi.fn());
+    h.fireNext();
+    loop.stop();
+
+    h.setNow(100);
+    const restartedVideo = { currentTime: 0.1 } as HTMLVideoElement;
+    loop.start(restartedVideo, vi.fn(), vi.fn());
+    h.fireNext();
+
+    const firstTimestamp = detect.mock.calls[0][1] as number;
+    const secondTimestamp = detect.mock.calls[1][1] as number;
+
+    expect(firstTimestamp).toBe(2000);
+    expect(secondTimestamp).toBeGreaterThan(firstTimestamp);
+  });
+
   it('cancels the pending frame and prevents later detection on stop', () => {
     const h = harness();
     const detect = vi.fn();
