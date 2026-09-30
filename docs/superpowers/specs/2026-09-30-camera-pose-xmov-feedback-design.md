@@ -123,7 +123,7 @@ It must not import App.tsx.
 
 M2.1 page contains:
 - camera preview;
-- optional skeleton/landmark overlay;
+- skeleton/landmark overlay;
 - camera state;
 - required landmark visibility;
 - inference latency/FPS;
@@ -468,7 +468,7 @@ MediaPipe runtime can have its own library-level metrics behavior; this design d
 
 ## 22. Asset strategy
 
-M2.1 pins @mediapipe/tasks-vision to an exact stable version and uses the official Pose Landmarker Lite model.
+M2.1 pins @mediapipe/tasks-vision to exact version 1.0.1 and uses the official Pose Landmarker Lite model.
 
 No @latest URLs.
 
@@ -660,3 +660,18 @@ M3 later wraps proven interfaces as:
 - pose feedback state → show_widget
 
 M3 must not redesign camera, geometry or exercise rules. It orchestrates already-proven capabilities.
+
+
+## 29. Official references
+
+- Google MediaPipe Pose Landmarker Web guide: https://developers.google.com/edge/mediapipe/solutions/vision/pose_landmarker/web_js
+- Google MediaPipe Pose Landmarker overview and model bundles: https://developers.google.com/edge/mediapipe/solutions/vision/pose_landmarker
+- npm package @mediapipe/tasks-vision: https://www.npmjs.com/package/@mediapipe/tasks-vision
+
+Design-time facts verified on 2026-09-30:
+- @mediapipe/tasks-vision stable version: 1.0.1;
+- Web package: @mediapipe/tasks-vision;
+- Pose Landmarker Lite / Full / Heavy model bundles are officially available;
+- Web VIDEO mode uses detectForVideo;
+- Web detect/detectForVideo are synchronous and can block the main thread;
+- Pose output includes 33 landmarks with shoulders 11/12, elbows 13/14, wrists 15/16, hips 23/24.
