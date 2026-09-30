@@ -96,6 +96,52 @@ describe('CameraSession', () => {
     expect(session.getError()).toBe('camera unavailable');
   });
 
+  it('cancels a pending camera request and stops a late stream', async () => {
+    let resolveStream!: (stream: MediaStream) => void;
+    const pending = new Promise<MediaStream>((resolve) => {
+      resolveStream = resolve;
+    });
+    const getUserMedia = vi.fn().mockReturnValue(pending);
+    const session = new CameraSession({ getUserMedia });
+    const startPromise = session.start();
+
+    session.stop();
+
+    const lateTrack = fakeTrack();
+    resolveStream(fakeStream([lateTrack]));
+
+    await expect(startPromise).rejects.toThrow(/cancel/i);
+    expect(lateTrack.stop).toHaveBeenCalledTimes(1);
+    expect(session.getStatus()).toBe('idle');
+    expect(session.getStream()).toBeNull();
+  });
+
+  it('allows a fresh request after stopping a pending start', async () => {
+    let resolveFirst!: (stream: MediaStream) => void;
+    const firstPending = new Promise<MediaStream>((resolve) => {
+      resolveFirst = resolve;
+    });
+    const secondStream = fakeStream([fakeTrack()]);
+    const getUserMedia = vi.fn()
+      .mockReturnValueOnce(firstPending)
+      .mockResolvedValueOnce(secondStream);
+    const session = new CameraSession({ getUserMedia });
+
+    const firstStart = session.start();
+    session.stop();
+    const secondStart = session.start();
+
+    expect(getUserMedia).toHaveBeenCalledTimes(2);
+    await expect(secondStart).resolves.toBe(secondStream);
+
+    const staleTrack = fakeTrack();
+    resolveFirst(fakeStream([staleTrack]));
+    await expect(firstStart).rejects.toThrow(/cancel/i);
+    expect(staleTrack.stop).toHaveBeenCalledTimes(1);
+    expect(session.getStream()).toBe(secondStream);
+    expect(session.getStatus()).toBe('active');
+  });
+
   it('stops every track, clears state, and is idempotent', async () => {
     const firstTrack = fakeTrack();
     const secondTrack = fakeTrack();
