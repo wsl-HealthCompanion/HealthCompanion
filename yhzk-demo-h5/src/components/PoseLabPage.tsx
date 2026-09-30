@@ -264,7 +264,7 @@ export function PoseLabView({
 export function stopPoseLabRuntime(args: {
   camera: Pick<CameraSession, 'stop'>;
   loop: Pick<PoseProbeLoop, 'stop'>;
-  video: { srcObject: MediaStream | null } | null;
+  video: { srcObject: MediaProvider | null } | null;
 }): void {
   args.loop.stop();
   args.camera.stop();
@@ -277,7 +277,7 @@ export function disposePoseLabRuntime(args: {
   camera: Pick<CameraSession, 'stop'>;
   loop: Pick<PoseProbeLoop, 'stop'>;
   adapter: Pick<PoseLandmarkerAdapter, 'close'> | null;
-  video: { srcObject: MediaStream | null } | null;
+  video: { srcObject: MediaProvider | null } | null;
 }): void {
   stopPoseLabRuntime(args);
   args.adapter?.close();
