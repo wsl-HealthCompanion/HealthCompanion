@@ -63,6 +63,23 @@ const EMPTY_DIAGNOSTICS: PoseProbeDiagnostics = {
   upperBodyBox: null,
 };
 
+export class PoseLabRunGate {
+  private generation = 0;
+
+  begin(): number {
+    this.generation += 1;
+    return this.generation;
+  }
+
+  invalidate(): void {
+    this.generation += 1;
+  }
+
+  isCurrent(token: number): boolean {
+    return token === this.generation;
+  }
+}
+
 export function mirroredOverlayX(x: number): number {
   return 1 - x;
 }
@@ -288,6 +305,7 @@ export default function PoseLabPage() {
   const cameraRef = useRef(new CameraSession());
   const adapterRef = useRef<PoseLandmarkerAdapter | null>(null);
   const loopRef = useRef<PoseProbeLoop | null>(null);
+  const runGateRef = useRef(new PoseLabRunGate());
   const mountedRef = useRef(true);
 
   const [state, setState] = useState<PoseLabViewState>({
@@ -304,6 +322,7 @@ export default function PoseLabPage() {
 
     return () => {
       mountedRef.current = false;
+      runGateRef.current.invalidate();
       disposePoseLabRuntime({
         camera: cameraRef.current,
         loop: {
@@ -326,6 +345,8 @@ export default function PoseLabPage() {
       return;
     }
 
+    const runToken = runGateRef.current.begin();
+
     setState((current) => ({
       ...current,
       cameraStatus: 'requesting',
@@ -334,10 +355,11 @@ export default function PoseLabPage() {
 
     try {
       const stream = await camera.start();
-      if (!mountedRef.current) {
-        for (const track of stream.getTracks()) {
-          track.stop();
-        }
+      if (
+        !mountedRef.current
+        || !runGateRef.current.isCurrent(runToken)
+      ) {
+        camera.stop();
         return;
       }
 
@@ -350,10 +372,11 @@ export default function PoseLabPage() {
       video.srcObject = stream;
       await video.play();
 
-      if (!mountedRef.current) {
-        for (const track of stream.getTracks()) {
-          track.stop();
-        }
+      if (
+        !mountedRef.current
+        || !runGateRef.current.isCurrent(runToken)
+        || camera.getStatus() !== 'active'
+      ) {
         return;
       }
 
@@ -364,11 +387,27 @@ export default function PoseLabPage() {
         error: '',
       }));
 
-      if (!adapterRef.current) {
+      let adapter = adapterRef.current;
+      if (!adapter) {
         try {
-          adapterRef.current = await PoseLandmarkerAdapter.create();
+          const createdAdapter = await PoseLandmarkerAdapter.create();
+          if (
+            !mountedRef.current
+            || !runGateRef.current.isCurrent(runToken)
+            || camera.getStatus() !== 'active'
+          ) {
+            createdAdapter.close();
+            return;
+          }
+          adapterRef.current = createdAdapter;
+          adapter = createdAdapter;
         } catch (error) {
-          if (!mountedRef.current) return;
+          if (
+            !mountedRef.current
+            || !runGateRef.current.isCurrent(runToken)
+          ) {
+            return;
+          }
           setState((current) => ({
             ...current,
             modelStatus: 'error',
@@ -380,14 +419,11 @@ export default function PoseLabPage() {
         }
       }
 
-      if (!mountedRef.current) {
-        adapterRef.current?.close();
-        adapterRef.current = null;
-        return;
-      }
-
-      const adapter = adapterRef.current;
-      if (!adapter) {
+      if (
+        !mountedRef.current
+        || !runGateRef.current.isCurrent(runToken)
+        || camera.getStatus() !== 'active'
+      ) {
         return;
       }
 
@@ -403,7 +439,10 @@ export default function PoseLabPage() {
       loop.start(
         video,
         (sample) => {
-          if (!mountedRef.current) return;
+          if (
+            !mountedRef.current
+            || !runGateRef.current.isCurrent(runToken)
+          ) return;
           setState((current) => ({
             ...current,
             frame: sample.frame,
@@ -412,7 +451,10 @@ export default function PoseLabPage() {
           }));
         },
         (error) => {
-          if (!mountedRef.current) return;
+          if (
+            !mountedRef.current
+            || !runGateRef.current.isCurrent(runToken)
+          ) return;
           setState((current) => ({
             ...current,
             modelStatus: 'error',
@@ -421,7 +463,10 @@ export default function PoseLabPage() {
         },
       );
     } catch (error) {
-      if (!mountedRef.current) return;
+      if (
+        !mountedRef.current
+        || !runGateRef.current.isCurrent(runToken)
+      ) return;
       setState((current) => ({
         ...current,
         cameraStatus: camera.getStatus(),
@@ -432,6 +477,7 @@ export default function PoseLabPage() {
   };
 
   const stopCamera = () => {
+    runGateRef.current.invalidate();
     stopPoseLabRuntime({
       camera: cameraRef.current,
       loop: {
