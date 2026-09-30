@@ -48,6 +48,7 @@ export default defineConfig({
         'index.html',
         'xmov-task1.html',
         'xmov-action-lab.html',
+        'pose-lab.html',
       ],
     },
   },
