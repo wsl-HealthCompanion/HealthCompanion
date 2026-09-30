@@ -626,7 +626,7 @@ If MediaPipe initialization fails after camera acquisition, the camera remains e
 npm run test:pose-lab
 ```
 
-Expected: all four Pose Lab specs PASS.
+Expected: all five Pose Lab specs PASS.
 
 - [ ] **Step 6: Add independent HTML/entry/style**
 
@@ -738,6 +738,7 @@ M2.1 closes only when:
 
 - camera lifecycle tests pass;
 - MediaPipe adapter tests pass;
+- probe calibration diagnostics tests pass;
 - throttling/cancellation tests pass;
 - Pose Lab view tests pass;
 - existing M1 Action Lab regression tests pass;
