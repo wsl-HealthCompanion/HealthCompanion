@@ -22,12 +22,19 @@ function isPermissionDenied(error: unknown): boolean {
   return error instanceof DOMException && error.name === 'NotAllowedError';
 }
 
+function stopTracks(stream: MediaStream): void {
+  for (const track of stream.getTracks()) {
+    track.stop();
+  }
+}
+
 export class CameraSession {
   private readonly deps: CameraSessionDeps;
   private status: CameraStatus = 'idle';
   private stream: MediaStream | null = null;
   private error = '';
   private pendingStart: Promise<MediaStream> | null = null;
+  private generation = 0;
 
   constructor(deps: Partial<CameraSessionDeps> = {}) {
     this.deps = {
@@ -57,16 +64,26 @@ export class CameraSession {
       return this.pendingStart;
     }
 
+    const generation = this.generation;
     this.status = 'requesting';
     this.error = '';
 
     const pending = this.deps.getUserMedia(CAMERA_CONSTRAINTS)
       .then((stream) => {
+        if (generation !== this.generation) {
+          stopTracks(stream);
+          throw new Error('Camera start cancelled');
+        }
+
         this.stream = stream;
         this.status = 'active';
         return stream;
       })
       .catch((error: unknown) => {
+        if (generation !== this.generation) {
+          throw error;
+        }
+
         this.stream = null;
         this.status = isPermissionDenied(error) ? 'denied' : 'error';
         this.error = errorMessage(error);
@@ -83,13 +100,14 @@ export class CameraSession {
   }
 
   stop(): void {
+    this.generation += 1;
+    this.pendingStart = null;
+
     const stream = this.stream;
     this.stream = null;
 
     if (stream) {
-      for (const track of stream.getTracks()) {
-        track.stop();
-      }
+      stopTracks(stream);
     }
 
     this.status = 'idle';
