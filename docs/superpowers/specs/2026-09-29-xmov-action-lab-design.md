@@ -228,18 +228,20 @@ interface ActionRegistryEntry {
 
 ### M1.6 — Final Verification
 
-Milestone 1 PASS 需要满足：
+Milestone 1 验收结果（2026-09-30）：**PASS，Milestone 1 正式关闭**。逐项记录见 [M1.6 最终验收记录](2026-09-30-xmov-m1-6-final-verification.md)。
 
-- 能从当前 App ID 获取真实 KA 列表；
-- 页面能展示动作总数；
-- 能看到 semantic / 名称 / 类型；
-- 有预览资源时可以查看；
-- 可以点击动作让当前数字人真实执行；
-- 至少记录 5 个适用于 HealthCompanion 的真实动作；若账号真实可用动作不足 5 个，则记录实际数量并明确上游限制，不伪造；
-- 生成 Action Registry；
-- Registry 中没有未验证 semantic；
-- 明确视觉共练是否存在可用于示范/鼓励/确认的动作；
-- 文档记录当前比赛账号的真实能力边界。
+- [x] 能从当前 App ID 获取真实 KA 列表：当前账号返回 94 个 KA。
+- [x] 页面能展示动作总数。
+- [x] 能看到 semantic / 名称 / 类型。
+- [x] 有预览资源时可以查看；本次 94 个 KA 均没有图片或视频资源。
+- [x] 可以点击动作让当前数字人真实执行：7 个不同 semantic 已通过实际画面确认。
+- [x] 至少记录 5 个适用于 HealthCompanion 的真实动作：能力目录记录了 7 个已视觉确认的不同 semantic；初始业务 Registry 采用其中 4 个唯一 semantic。
+- [x] 生成 Action Registry。
+- [x] Registry 中没有未验证 semantic；`fallback` 明确为 `null`，不代表 KA 动作。
+- [x] 明确视觉共练是否存在可用于示范/鼓励/确认的动作：鼓励、确认和方向指示已有视觉确认；真正的肩部伸展/健身示范 KA 未确认，`daoyou_Hello01` 仅作为互动引导。
+- [x] 文档记录当前比赛账号的真实能力边界及非阻塞已知问题。
+
+Milestone 1 完成后的下一步是 **Milestone 2：Camera → Pose → Xmov Feedback**，先闭环一个肩部动作。
 
 ## 6. Backend Components
 

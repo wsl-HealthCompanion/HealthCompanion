@@ -283,6 +283,6 @@ M1.4 code is complete when:
 - all Action Lab tests pass;
 - frontend production build passes.
 
-**Manual real-account acceptance remains required:** with valid Xmov frontend credentials and backend KA credentials, open `/xmov-action-lab.html`, select an action returned by the current account, click `执行动作`, and visually confirm the avatar performs that KA. SDK promise resolution is not itself proof of the visible animation; the observed result is recorded later in M1.6.
+**Manual real-account acceptance completed:** seven distinct semantics were visually confirmed in `/xmov-action-lab.html`. The 94 returned KA entries had no image/video preview resources. Final observations, limitations, and known issues are recorded in [M1.6 Final Verification](../specs/2026-09-30-xmov-m1-6-final-verification.md). SDK promise resolution was not treated as proof of the visible animation.
 
-The next iteration is **M1.5 — Action Registry**.
+M1.5 Action Registry is complete and M1.6 has formally closed Milestone 1. The next milestone is **M2 — Camera → Pose → Xmov Feedback**, beginning with one shoulder movement loop.
