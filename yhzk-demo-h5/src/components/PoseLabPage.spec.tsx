@@ -2,6 +2,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import {
+  PoseLabRunGate,
   PoseLabView,
   disposePoseLabRuntime,
   mirroredOverlayX,
@@ -215,5 +216,24 @@ describe('Pose Lab runtime cleanup', () => {
       adapter: null,
       video: null,
     })).not.toThrow();
+  });
+});
+
+
+describe('PoseLabRunGate', () => {
+  it('invalidates an in-flight start when stop or unmount occurs', () => {
+    const gate = new PoseLabRunGate();
+    const firstStart = gate.begin();
+
+    expect(gate.isCurrent(firstStart)).toBe(true);
+
+    gate.invalidate();
+
+    expect(gate.isCurrent(firstStart)).toBe(false);
+
+    const secondStart = gate.begin();
+
+    expect(gate.isCurrent(firstStart)).toBe(false);
+    expect(gate.isCurrent(secondStart)).toBe(true);
   });
 });
