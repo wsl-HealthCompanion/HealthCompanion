@@ -463,3 +463,365 @@ summary:focus-visible {
     grid-template-columns: 1fr;
   }
 }
+
+/* The training page is a temporary verification window, not a scrolling dashboard. */
+.pose-lab--practice {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 10px;
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  max-width: none;
+  margin: 0;
+  padding: 10px 18px;
+  overflow: hidden;
+  background: #f3f8f5;
+}
+
+.pose-lab--practice .pose-lab__header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  max-width: none;
+  min-width: 0;
+  margin: 0;
+}
+
+.pose-lab--practice .pose-lab__badge {
+  flex: 0 0 auto;
+  padding: 5px 10px;
+  font-size: 11px;
+}
+
+.pose-lab--practice .pose-lab__header h1 {
+  margin: 0;
+  font-size: clamp(20px, 2.2vw, 28px);
+  line-height: 1.1;
+  letter-spacing: -.02em;
+}
+
+.pose-lab--practice .pose-lab__header p {
+  display: none;
+}
+
+.pose-lab--practice .pose-lab__workspace {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto auto;
+  gap: 8px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.pose-lab--practice .pose-lab__practice-row--with-avatar {
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr);
+  gap: 14px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.pose-lab--practice .pose-lab__camera-column,
+.pose-lab--practice .pose-lab__avatar-column {
+  min-width: 0;
+  min-height: 0;
+}
+
+.pose-lab--practice .pose-lab__camera-column {
+  display: flex;
+  flex-direction: column;
+}
+
+.pose-lab--practice .pose-lab__stage {
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  aspect-ratio: auto !important;
+  border-radius: 20px;
+  background: #15231c;
+}
+
+.pose-lab--practice .pose-lab__video {
+  object-fit: contain;
+}
+
+.pose-lab--practice .pose-lab__controls--overlay {
+  position: absolute;
+  z-index: 4;
+  top: 12px;
+  right: 12px;
+  margin: 0;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.pose-lab--practice .pose-lab__controls--overlay button,
+.pose-lab--practice .pose-lab__camera-select select {
+  min-height: 38px;
+  padding: 8px 12px;
+  border: 1px solid rgba(220, 232, 224, .9);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .94);
+  color: #244735;
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: 0 4px 14px rgba(15, 34, 24, .14);
+}
+
+.pose-lab--practice .pose-lab__camera-select {
+  gap: 0;
+  color: transparent;
+  font-size: 0;
+}
+
+.pose-lab--practice .pose-lab__camera-select select {
+  max-width: min(240px, 28vw);
+}
+
+.pose-lab--practice .pose-lab__avatar-column {
+  display: flex;
+}
+
+.pose-lab--practice .pose-avatar {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  padding: 12px;
+  overflow: hidden;
+  border-radius: 20px;
+}
+
+.pose-lab--practice .pose-avatar > h2 {
+  margin: 0;
+}
+
+.pose-lab--practice .pose-avatar > p:not(.pose-avatar__timing) {
+  display: none;
+}
+
+.pose-lab--practice .pose-avatar__stage {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
+  margin: 8px 0 0;
+  border-radius: 16px;
+}
+
+.pose-lab--practice .pose-avatar__stage .xmov-player,
+.pose-lab--practice .pose-avatar__stage .xmov-stage {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  border-radius: 16px;
+}
+
+.pose-lab--practice .pose-avatar__empty {
+  display: grid;
+  flex: 1 1 auto;
+  min-height: 0;
+  margin-top: 8px;
+  place-items: center;
+  border: 1px dashed #bfd3c5;
+  border-radius: 16px;
+  color: #64736a;
+  background: radial-gradient(circle at 50% 30%, #f8fcf9, #e8f1eb);
+}
+
+.pose-lab--practice .pose-avatar__controls {
+  position: absolute;
+  z-index: 8;
+  top: 8px;
+  right: 8px;
+  margin: 0;
+}
+
+.pose-lab--practice .pose-avatar__controls button {
+  min-height: 36px;
+  padding: 7px 11px;
+  font-size: 12px;
+  background: rgba(255, 255, 255, .95);
+  box-shadow: 0 4px 14px rgba(15, 34, 24, .12);
+}
+
+.pose-lab--practice .pose-avatar__feedback:not(.pose-avatar__feedback--error) {
+  display: none;
+}
+
+.pose-lab--practice .pose-avatar__feedback--error {
+  position: absolute;
+  z-index: 7;
+  top: 48px;
+  left: 12px;
+  right: 12px;
+  margin: 0;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.pose-lab--practice .pose-avatar__timing {
+  flex: 0 0 auto;
+  margin: 5px 2px 0;
+  font-size: 10px;
+  line-height: 1.25;
+}
+
+.pose-lab--practice .pose-lab__training-dock {
+  min-width: 0;
+}
+
+.pose-lab--practice .pose-feedback {
+  display: grid;
+  grid-template-columns: minmax(150px, .8fr) minmax(220px, 1.2fr) auto;
+  align-items: center;
+  gap: 7px 16px;
+  padding: 10px 14px;
+  border-radius: 16px;
+}
+
+.pose-lab--practice .pose-feedback__heading {
+  grid-column: 1;
+  grid-row: 1;
+  gap: 6px;
+}
+
+.pose-lab--practice .pose-feedback__heading h2 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.pose-lab--practice .pose-feedback__status {
+  padding: 3px 7px;
+  font-size: 10px;
+}
+
+.pose-lab--practice .pose-feedback > p:not(.pose-feedback__guidance),
+.pose-lab--practice .pose-feedback__angles,
+.pose-lab--practice .pose-feedback__details,
+.pose-lab--practice .pose-feedback__issues,
+.pose-lab--practice .pose-feedback__note {
+  display: none;
+}
+
+.pose-lab--practice .pose-feedback__guidance {
+  grid-column: 2;
+  grid-row: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.pose-lab--practice .pose-feedback__controls {
+  grid-column: 3;
+  grid-row: 1;
+  justify-content: flex-end;
+  margin: 0;
+}
+
+.pose-lab--practice .pose-feedback__controls button {
+  min-height: 40px;
+  padding: 8px 13px;
+  font-size: 13px;
+}
+
+.pose-lab--practice .pose-feedback__hold {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+}
+
+.pose-lab--practice .pose-feedback__hold div {
+  flex: 0 0 auto;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.pose-lab--practice .pose-feedback__hold progress {
+  flex: 1 1 auto;
+  height: 9px;
+  margin: 0;
+}
+
+.pose-lab--practice .pose-lab__diagnostics {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  max-height: 36px;
+  overflow: auto;
+}
+
+.pose-lab--practice .pose-lab__probe-details summary {
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.pose-lab--practice .pose-lab__probe-panels {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 760px) {
+  .pose-lab--practice .pose-lab__practice-row--with-avatar {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr);
+    gap: 9px;
+  }
+
+  .pose-lab--practice .pose-lab__training-dock .pose-feedback {
+    grid-template-columns: minmax(130px, .8fr) minmax(0, 1.2fr) auto;
+    gap: 6px 8px;
+    padding: 8px 10px;
+  }
+}
+
+@media (max-width: 620px) {
+  .pose-lab--practice {
+    position: relative;
+    height: auto;
+    min-height: 100svh;
+    padding: 12px;
+    overflow: visible;
+  }
+
+  .pose-lab--practice .pose-lab__header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 7px;
+  }
+
+  .pose-lab--practice .pose-lab__practice-row--with-avatar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pose-lab--practice .pose-lab__stage,
+  .pose-lab--practice .pose-avatar__stage,
+  .pose-lab--practice .pose-avatar__empty {
+    min-height: 38svh;
+  }
+
+  .pose-lab--practice .pose-feedback {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .pose-lab--practice .pose-feedback__heading,
+  .pose-lab--practice .pose-feedback__guidance {
+    grid-column: 1;
+  }
+
+  .pose-lab--practice .pose-feedback__controls {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+
+  .pose-lab--practice .pose-lab__probe-panels {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

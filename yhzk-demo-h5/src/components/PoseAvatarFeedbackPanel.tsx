@@ -42,7 +42,14 @@ export function PoseAvatarFeedbackPanel({ feedback, onAvailabilityChange }: Prop
           />
         </div>
       )}
-      <div className="pose-avatar__feedback" aria-live="polite" aria-atomic="true">
+      {!connected && (
+        <div className="pose-avatar__empty">连接后，数字人会在这里陪你训练</div>
+      )}
+      <div
+        className={`pose-avatar__feedback${feedback.error ? ' pose-avatar__feedback--error' : ''}`}
+        aria-live="polite"
+        aria-atomic="true"
+      >
         {feedback.error ? (
           <p className="pose-lab__error">{feedback.error}</p>
         ) : feedback.text ? (

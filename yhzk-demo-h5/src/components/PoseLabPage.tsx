@@ -252,9 +252,37 @@ export function PoseLabView({
   const observationFresh = !training || training.hasFreshSample;
   const frame = observationFresh ? state.frame : null;
   const diagnostics = observationFresh ? state.diagnostics : EMPTY_DIAGNOSTICS;
+  const practiceMode = Boolean(training && avatarPanel);
+  const cameraControls = (
+    <div className={`pose-lab__controls${practiceMode ? ' pose-lab__controls--overlay' : ''}`}>
+      {state.cameraStatus === 'requesting' ? (
+        <button type="button" onClick={onStopCamera}>取消连接</button>
+      ) : state.cameraStatus === 'active' ? (
+        <button type="button" onClick={onStopCamera}>关闭摄像头</button>
+      ) : (
+        <button type="button" onClick={onStartCamera}>开启摄像头</button>
+      )}
+      {cameraDevices.length > 0 && onSelectCamera && (
+        <label className="pose-lab__camera-select">
+          摄像头来源
+          <select
+            value={selectedCameraId}
+            onChange={(event) => onSelectCamera(event.currentTarget.value)}
+            disabled={state.cameraStatus === 'requesting'}
+          >
+            {cameraDevices.map((device, index) => (
+              <option key={device.deviceId} value={device.deviceId}>
+                {device.label || `摄像头 ${index + 1}`}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+    </div>
+  );
 
   return (
-    <main className="pose-lab">
+    <main className={`pose-lab${practiceMode ? ' pose-lab--practice' : ''}`}>
       <header className="pose-lab__header">
         <span className="pose-lab__badge">{training ? 'Pose Lab · 实时姿态练习' : 'Milestone 2.1 · Camera + Pose Probe'}</span>
         <h1>{training ? '肩部动作练习' : 'Pose Lab'}</h1>
@@ -268,7 +296,10 @@ export function PoseLabView({
       <section className="pose-lab__workspace">
         <div className={`pose-lab__practice-row${avatarPanel ? ' pose-lab__practice-row--with-avatar' : ''}`}>
           <div className="pose-lab__camera-column">
-            <div className="pose-lab__stage" style={videoAspectRatio ? { aspectRatio: videoAspectRatio } : undefined}>
+            <div
+              className="pose-lab__stage"
+              style={!practiceMode && videoAspectRatio ? { aspectRatio: videoAspectRatio } : undefined}
+            >
               {videoElement}
               {state.cameraStatus !== 'active' && (
                 <div className="pose-lab__camera-placeholder" role="status">
@@ -284,40 +315,10 @@ export function PoseLabView({
                 && !training.hasFreshSample && (
                   <div className="pose-lab__observation-notice">正在等待新的姿态画面</div>
                 )}
+              {practiceMode && cameraControls}
             </div>
 
-            <div className="pose-lab__controls">
-              {state.cameraStatus === 'requesting' ? (
-                <button type="button" onClick={onStopCamera}>取消连接</button>
-              ) : state.cameraStatus === 'active' ? (
-                <button type="button" onClick={onStopCamera}>
-                  关闭摄像头
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={onStartCamera}
-                >
-                  开启摄像头
-                </button>
-              )}
-              {cameraDevices.length > 0 && onSelectCamera && (
-                <label className="pose-lab__camera-select">
-                  摄像头来源
-                  <select
-                    value={selectedCameraId}
-                    onChange={(event) => onSelectCamera(event.currentTarget.value)}
-                    disabled={state.cameraStatus === 'requesting'}
-                  >
-                    {cameraDevices.map((device, index) => (
-                      <option key={device.deviceId} value={device.deviceId}>
-                        {device.label || `摄像头 ${index + 1}`}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              )}
-            </div>
+            {!practiceMode && cameraControls}
           </div>
 
           {avatarPanel && (
@@ -325,78 +326,83 @@ export function PoseLabView({
           )}
         </div>
 
+        {practiceMode && training && (
+          <div className="pose-lab__training-dock">
+            <PoseFeedbackWidget {...training} />
+          </div>
+        )}
+
         <aside className="pose-lab__diagnostics">
-          {training && <PoseFeedbackWidget {...training} />}
-          <section className="pose-lab__panel">
-            <h2>运行状态</h2>
-            <p>{cameraStatusText(state.cameraStatus)}</p>
-            <p>{modelStatusText(state.modelStatus)}</p>
-            {cameraLabel && <p>设备：{cameraLabel}</p>}
-            {videoDimensions && <p>画面尺寸：{videoDimensions}</p>}
-            {state.error && (
-              <p className="pose-lab__error" role="alert">
-                {state.error}
-              </p>
-            )}
-          </section>
+          <details className="pose-lab__probe-details" open={!practiceMode}>
+            <summary>设备与识别详情</summary>
+            <section className="pose-lab__panel">
+              <h2>运行状态</h2>
+              <p>{cameraStatusText(state.cameraStatus)}</p>
+              <p>{modelStatusText(state.modelStatus)}</p>
+              {cameraLabel && <p>设备：{cameraLabel}</p>}
+              {videoDimensions && <p>画面尺寸：{videoDimensions}</p>}
+              {state.error && (
+                <p className="pose-lab__error" role="alert">
+                  {state.error}
+                </p>
+              )}
+            </section>
 
-          <details className="pose-lab__probe-details">
-            <summary>识别详情</summary>
             <div className="pose-lab__probe-panels">
-          <section className="pose-lab__panel">
-            <h2>探针性能</h2>
-            <div className="pose-lab__metrics">
-              <span>
-                推理 {state.stats.lastInferenceMs === null
-                  ? '—'
-                  : state.stats.lastInferenceMs.toFixed(1)} ms
-              </span>
-              <span>{observationFresh ? state.stats.effectiveFps : 0} FPS</span>
-              <span>跳帧 {state.stats.skippedFrames}</span>
-            </div>
-          </section>
+              <section className="pose-lab__panel">
+                <h2>探针性能</h2>
+                <div className="pose-lab__metrics">
+                  <span>
+                    推理 {state.stats.lastInferenceMs === null
+                      ? '—'
+                      : state.stats.lastInferenceMs.toFixed(1)} ms
+                  </span>
+                  <span>{observationFresh ? state.stats.effectiveFps : 0} FPS</span>
+                  <span>跳帧 {state.stats.skippedFrames}</span>
+                </div>
+              </section>
 
-          <section className="pose-lab__panel">
-            <h2>校准测量</h2>
-            <div className="pose-lab__metrics pose-lab__metrics--stack">
-              <span>
-                肩宽 {formatMetric(diagnostics.shoulderWidth)}
-              </span>
-              <span>
-                躯干高度 {formatMetric(diagnostics.torsoHeight)}
-              </span>
-              <span>
-                BBox {diagnostics.upperBodyBox
-                  ? [
-                      formatMetric(diagnostics.upperBodyBox.xMin),
-                      formatMetric(diagnostics.upperBodyBox.yMin),
-                      '→',
-                      formatMetric(diagnostics.upperBodyBox.xMax),
-                      formatMetric(diagnostics.upperBodyBox.yMax),
-                    ].join(', ').replace(', →,', ' →')
-                  : '—'}
-              </span>
-            </div>
-          </section>
+              <section className="pose-lab__panel">
+                <h2>校准测量</h2>
+                <div className="pose-lab__metrics pose-lab__metrics--stack">
+                  <span>
+                    肩宽 {formatMetric(diagnostics.shoulderWidth)}
+                  </span>
+                  <span>
+                    躯干高度 {formatMetric(diagnostics.torsoHeight)}
+                  </span>
+                  <span>
+                    BBox {diagnostics.upperBodyBox
+                      ? [
+                          formatMetric(diagnostics.upperBodyBox.xMin),
+                          formatMetric(diagnostics.upperBodyBox.yMin),
+                          '→',
+                          formatMetric(diagnostics.upperBodyBox.xMax),
+                          formatMetric(diagnostics.upperBodyBox.yMax),
+                        ].join(', ').replace(', →,', ' →')
+                      : '—'}
+                  </span>
+                </div>
+              </section>
 
-          <section className="pose-lab__panel">
-            <h2>关键点可见度</h2>
-            {!frame ? (
-              <p>未检测到人体</p>
-            ) : (
-              <ul className="pose-lab__landmarks">
-                {REQUIRED_POSE_LANDMARKS.map(({ index, key, label }) => {
-                  const point = frame.landmarks[index];
-                  const visibility = point
-                    ? point.visibility.toFixed(2)
-                    : '—';
-                  return (
-                    <li key={key}>{`${label} ${visibility}`}</li>
-                  );
-                })}
-              </ul>
-            )}
-          </section>
+              <section className="pose-lab__panel">
+                <h2>关键点可见度</h2>
+                {!frame ? (
+                  <p>未检测到人体</p>
+                ) : (
+                  <ul className="pose-lab__landmarks">
+                    {REQUIRED_POSE_LANDMARKS.map(({ index, key, label }) => {
+                      const point = frame.landmarks[index];
+                      const visibility = point
+                        ? point.visibility.toFixed(2)
+                        : '—';
+                      return (
+                        <li key={key}>{`${label} ${visibility}`}</li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </section>
             </div>
           </details>
         </aside>
