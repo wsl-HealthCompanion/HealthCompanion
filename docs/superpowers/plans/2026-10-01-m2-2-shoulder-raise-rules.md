@@ -20,7 +20,7 @@
 - Default framing is unknown because numerical camera calibration evidence was not supplied.
 - Optional framing limits use normalized shoulder width and torso height, never centimeters.
 - Add optional PoseFrame.imageSize copied from video dimensions to undo independent x/y normalization. Legacy frames without dimensions use a square-coordinate plane; explicitly invalid dimensions fail closed.
-- Work inline on the user-selected feature branch and preserve the two pre-existing M2.1 timestamp edits. Commit only M2.2 files; no push.
+- Work inline on the user-selected feature branch and preserve the two pre-existing M2.1 timestamp edits. M2.2 task commits contain only M2.2 files; save the user-accepted M2.1 fix in a separate local commit afterward. No push.
 
 ## Review Focus
 
@@ -67,4 +67,4 @@
 - [x] Add the two geometry/rule specs to `test:pose-lab`; run it, expecting baseline probe tests and new tests all pass.
 - [x] Run `npm run build` and `git diff --check`; expect successful build and no whitespace errors.
 - [x] Record the user's M2.1 acceptance, M2.2 interfaces, uncalibrated framing, aspect handling, test evidence and the M2.3 handoff. Link the record in docs README.
-- [ ] Commit only Task 2 files. Request a fresh final code review under executing-plans; fix material findings with reproducing tests. Keep the branch locally for the next milestone.
+- [x] Commit only Task 2 files. Request a fresh final code review under executing-plans; fix material findings with reproducing tests. Keep the branch locally for the next milestone.
