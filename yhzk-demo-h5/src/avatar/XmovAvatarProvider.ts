@@ -34,8 +34,6 @@ function normalizeState(raw: string): XmovAvatarRuntimeState {
 
 export class XmovAvatarProvider {
   private instance: XmovAvatarInstance | null = null;
-  private activeFeedbackSpeakId: string | null = null;
-  private activeFeedbackVoiceStart: ((atMs: number) => void) | null = null;
   private lifecycle = 0;
   private state: XmovAvatarRuntimeState = 'unconfigured';
   /** 当前轮的表达计划（Task 3，由 bridge 在 intent 到达时写入） */
@@ -103,14 +101,8 @@ export class XmovAvatarProvider {
           const normalized = String(status || '').toLowerCase();
           if (normalized.includes('start')) {
             this.setState('speaking', status);
-            const onVoiceStart = this.activeFeedbackSpeakId
-              ? this.activeFeedbackVoiceStart : null;
-            this.activeFeedbackVoiceStart = null;
-            onVoiceStart?.(performance.now());
           }
           if (normalized.includes('end')) {
-            this.activeFeedbackSpeakId = null;
-            this.activeFeedbackVoiceStart = null;
             this.setState('interactive-idle', status);
           }
           this.events.onVoiceStateChange?.(status);
@@ -191,8 +183,6 @@ export class XmovAvatarProvider {
     clientSpeakId = `xmov_${Date.now()}`,
   ): Promise<void> {
     this.requireInstance();
-    this.activeFeedbackSpeakId = null;
-    this.activeFeedbackVoiceStart = null;
     const normalized = text.trim();
     if (!normalized && !isEnd) return;
     this.setState('speaking');
@@ -215,8 +205,6 @@ export class XmovAvatarProvider {
     clientSpeakId = `xmov_ka_${Date.now()}`,
   ): Promise<void> {
     this.requireInstance();
-    this.activeFeedbackSpeakId = null;
-    this.activeFeedbackVoiceStart = null;
     this.setState('speaking');
     await this.instance?.speak?.(
       buildXmovKaSsml(semantic),
@@ -232,25 +220,20 @@ export class XmovAvatarProvider {
     semantic: string | null,
     clientSpeakId: string,
     onSubmitted?: () => void,
-    onVoiceStart?: (atMs: number) => void,
   ): Promise<void> {
     this.requireInstance();
     const instance = this.instance;
     if (!instance?.speak) throw new Error('Xmov speech is unavailable');
     this.setState('speaking');
-    this.activeFeedbackSpeakId = clientSpeakId;
-    this.activeFeedbackVoiceStart = onVoiceStart ?? null;
     const ssml = semantic ? buildXmovKaSsml(semantic, text) : renderSsml(text, null, false);
-    onSubmitted?.();
+    let speech: void | Promise<void>;
     try {
-      await instance.speak(ssml, true, true, { client_speak_id: clientSpeakId });
+      speech = instance.speak(ssml, true, true, { client_speak_id: clientSpeakId });
     } catch (error) {
-      if (this.activeFeedbackSpeakId === clientSpeakId) {
-        this.activeFeedbackSpeakId = null;
-        this.activeFeedbackVoiceStart = null;
-      }
       throw error;
     }
+    onSubmitted?.();
+    await speech;
   }
 
   /**
@@ -267,8 +250,6 @@ export class XmovAvatarProvider {
   }
 
   async interrupt(): Promise<void> {
-    this.activeFeedbackSpeakId = null;
-    this.activeFeedbackVoiceStart = null;
     if (!this.instance) return;
     await this.instance.interrupt?.('speak');
     this.setState('interactive-idle');
@@ -276,8 +257,6 @@ export class XmovAvatarProvider {
 
   async destroy(): Promise<void> {
     const lifecycle = ++this.lifecycle;
-    this.activeFeedbackSpeakId = null;
-    this.activeFeedbackVoiceStart = null;
     const instance = this.instance;
     this.instance = null;
     this.plan = null;

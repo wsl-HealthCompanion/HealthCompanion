@@ -16,7 +16,7 @@ interface RoundContext {
 
 interface FeedbackLane {
   tail: Promise<void>;
-  pending: number;
+  speechRequests: Set<{ cleanupGeneration: number | null }>;
 }
 
 function delay(ms: number): Promise<void> {
@@ -30,13 +30,13 @@ class XmovAvatarBridge {
   private round: RoundContext | null = null;
   private queue: Promise<void> = Promise.resolve();
   // Keep in-flight SDK calls ordered even after a generation is invalidated.
-  private feedbackLane: FeedbackLane = { tail: Promise.resolve(), pending: 0 };
+  private feedbackLane: FeedbackLane = { tail: Promise.resolve(), speechRequests: new Set() };
 
   attach(provider: XmovAvatarProvider): () => void {
     this.generation += 1;
     this.round = null;
     this.queue = Promise.resolve();
-    this.feedbackLane = { tail: Promise.resolve(), pending: 0 };
+    this.feedbackLane = { tail: Promise.resolve(), speechRequests: new Set() };
     this.provider = provider;
     this.ready = false;
     return () => {
@@ -46,7 +46,7 @@ class XmovAvatarBridge {
       this.round = null;
       this.generation += 1;
       this.queue = Promise.resolve();
-      this.feedbackLane = { tail: Promise.resolve(), pending: 0 };
+      this.feedbackLane = { tail: Promise.resolve(), speechRequests: new Set() };
     };
   }
 
@@ -197,11 +197,9 @@ class XmovAvatarBridge {
     actionKey: PoseFeedbackAction | undefined,
     signal: AbortSignal,
     onSubmitted?: () => void,
-    onVoiceStarted?: (atMs: number) => void,
     onFailure?: () => void,
   ): Promise<boolean> {
     const lane = this.feedbackLane;
-    lane.pending += 1;
     const provider = this.provider;
     const generation = ++this.generation;
     this.round = null;
@@ -216,22 +214,27 @@ class XmovAvatarBridge {
       }
       await provider.interrupt();
       if (!current()) return false;
+      await provider.interactiveIdle();
+      if (!current()) return false;
+      const speechRequest = { cleanupGeneration: null as number | null };
+      lane.speechRequests.add(speechRequest);
       const speech = provider.speakFeedback(
         text,
         entry?.semantic ?? null,
         `pose_${generation}`,
         () => { if (current()) onSubmitted?.(); },
-        (atMs) => { if (current()) onVoiceStarted?.(atMs); },
       );
       // Queue the SDK invocation, not the entire utterance. Waiting for end-of-speech
       // delayed the next stable response by however long the previous speech lasted.
-      void speech.catch(() => { if (current()) onFailure?.(); });
+      void speech.then(() => {
+        this.settleFeedbackSpeech(lane, provider, speechRequest);
+      }, () => {
+        if (current()) onFailure?.();
+        this.settleFeedbackSpeech(lane, provider, speechRequest);
+      });
       return current(); // submitted, not evidence of audible/visible completion
     });
-    lane.tail = work.then(
-      () => { lane.pending -= 1; },
-      () => { lane.pending -= 1; },
-    );
+    lane.tail = work.then(() => {}, () => {});
     return work;
   }
 
@@ -244,17 +247,26 @@ class XmovAvatarBridge {
     // Readiness blocks new submissions, never cleanup of a captured SDK instance.
     if (!provider) return;
     const lane = this.feedbackLane;
-    const pendingFeedback = lane.pending > 0;
-    // Immediate interruption stops current playback. A trailing interruption also
-    // clears an SDK submission that finishes after cancel; new feedback waits for both.
+    for (const request of lane.speechRequests) request.cleanupGeneration = this.generation;
+    // Interrupt now. Requests still settling get a generation-guarded trailing cleanup;
+    // stale cleanup must never interrupt a newer feedback response.
     const immediate = provider.interrupt().catch(() => {});
     const trailing = lane.tail.then(async () => {
       await immediate;
-      if (!pendingFeedback || this.provider !== provider) return;
-      try { await provider.interrupt(); } catch { /* best effort */ }
     });
     lane.tail = trailing.catch(() => {});
     await lane.tail;
+  }
+
+  private settleFeedbackSpeech(
+    lane: FeedbackLane,
+    provider: XmovAvatarProvider,
+    request: { cleanupGeneration: number | null },
+  ): void {
+    lane.speechRequests.delete(request);
+    if (request.cleanupGeneration !== this.generation || this.provider !== provider) return;
+    request.cleanupGeneration = null;
+    void provider.interrupt().catch(() => {});
   }
 
   private enqueue(

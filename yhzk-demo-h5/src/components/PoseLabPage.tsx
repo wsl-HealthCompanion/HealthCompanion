@@ -266,7 +266,7 @@ export function PoseLabView({
       </header>
 
       <section className="pose-lab__workspace">
-        <div className="pose-lab__practice-row">
+        <div className={`pose-lab__practice-row${avatarPanel ? ' pose-lab__practice-row--with-avatar' : ''}`}>
           <div className="pose-lab__camera-column">
             <div className="pose-lab__stage" style={videoAspectRatio ? { aspectRatio: videoAspectRatio } : undefined}>
               {videoElement}

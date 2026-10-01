@@ -55,9 +55,9 @@ export function PoseAvatarFeedbackPanel({ feedback, onAvailabilityChange }: Prop
       </div>
       {feedback.timing?.eventToSubmitMs !== null && feedback.timing && (
         <p className="pose-avatar__timing" aria-live="off">
-          {feedback.timing.submitToVoiceStartMs === null
-            ? `反馈已发送，用时 ${(feedback.timing.eventToSubmitMs / 1000).toFixed(1)} 秒，等待数字人开始回应。`
-            : `动作判断到发送 ${(feedback.timing.eventToSubmitMs / 1000).toFixed(1)} 秒；发送到回应信号 ${(feedback.timing.submitToVoiceStartMs / 1000).toFixed(1)} 秒。`}
+          {feedback.status === 'error'
+            ? `动作判断到 SDK 收到请求 ${(feedback.timing.eventToSubmitMs / 1000).toFixed(1)} 秒；该请求发送失败，未统计回应时间。`
+            : `动作判断到 SDK 收到请求 ${(feedback.timing.eventToSubmitMs / 1000).toFixed(1)} 秒；SDK 未提供可对应到此请求的语音开始标识，请按实际语音确认回应耗时。`}
         </p>
       )}
       <div className="pose-avatar__controls">

@@ -4,7 +4,7 @@
 
 **Goal:** Keep the user's camera and digital-human coach visible together, then measure and reduce delay from pose completion to the digital human beginning its reply.
 
-**Architecture:** Place camera and avatar in a shared responsive practice row, with the pose Widget directly below. Record monotonic timestamps at completion-event creation, SDK speak submission and the first Xmov voice-start callback; show the latest two elapsed intervals alongside the reply. Use the measurement to guide a bounded code fix, while leaving real-device playback acceptance to the user.
+**Architecture:** Place camera and avatar in a shared responsive practice row, with the pose Widget directly below. Record monotonic timestamps at completion-event creation and SDK speak submission; show that measured interval beside the reply. The current Xmov JavaScript voice callback exposes only a global status string and no request ID, so do not attribute a voice-start signal to a specific delivery; leave playback onset for human acceptance. Use the reliable interval to guide a bounded code fix.
 
 **Tech Stack:** Existing React/TypeScript/SCSS, `PerceptionEvent.timestampMs`, Xmov provider `onVoiceStateChange`, no new dependencies.
 
@@ -22,7 +22,7 @@
 ## Review Focus
 
 - The shared visual row remains within common laptop viewport widths without compressing the camera so much that upper-body tracking becomes unusable.
-- Event→SDK-submit timing and SDK-submit→voice-start timing use the same monotonic basis; absent voice callback is shown as unknown rather than a false success/timeout.
+- Event→SDK-submit timing uses the same monotonic basis at both endpoints. The global voice callback is not used for per-delivery timing because it has no request identity.
 - Duplicate/retried callbacks cannot apply one response's onset duration to another response; late voice callbacks after cancel/unmount are ignored.
 - Starting, reconnecting, camera error, and hold completion preserve the existing no-event-replay and cancellation rules.
 - Measuring latency adds no frame, landmark, key, or speech telemetry to a server.
@@ -33,18 +33,18 @@
 
 **Interfaces:** Practice row owns camera preview/controls and existing avatar panel; measurement widget/status/details follow it below. Existing legacy probe-only view remains single-column.
 
-- [ ] Move the avatar beside the camera in the same responsive row; keep the training widget and diagnostics after the row.
-- [ ] Set stage sizing and responsive breakpoints so both live panels are readable on desktop; retain stacked layout on narrow mobile widths.
-- [ ] Inspect source diff and run production build; commit.
+- [x] Move the avatar beside the camera in the same responsive row; keep the training widget and diagnostics after the row. Keep the legacy probe camera full-width when no avatar panel is present.
+- [x] Set stage sizing and responsive breakpoints so both live panels are readable on desktop; retain stacked layout on narrow mobile widths.
+- [x] Inspect source diff and run production build; commit.
 
 ### Task 2: Measure response onset and address queue latency
 
 **Files:** Modify `yhzk-demo-h5/src/pose/poseAvatarFeedback.ts`, `src/pose/usePoseAvatarFeedback.ts`, `src/components/PoseAvatarFeedbackPanel.tsx`, `src/components/XmovAvatarPlayer.tsx`, `src/avatar/XmovAvatarProvider.ts`, `src/services/xmovAvatar.ts`, implementation record and README.
 
-**Interfaces:** A feedback attempt carries `eventAtMs`. Provider signals each `submittedAtMs` immediately before the SDK speak invocation and forwards the first matching voice-start timestamp; UI reports `event→submit` and `submit→voice start`. Voice timing is reset per delivery and ignored after cancellation.
+**Interfaces:** A feedback attempt carries `eventAtMs`. Provider records the SDK speak invocation after the method returns; UI reports `event→submit`. The SDK's generic voice status remains presentation state only and is not attributed to a delivery because the callback carries no request ID.
 
-- [ ] Add per-response monotonic timing callbacks from the stable completion event through SDK submission and voice-start, surfaced as concise UI status.
-- [ ] Statically trace measured delays and the existing serialized lane. Make the smallest ordering/queue correction supported by source evidence; avoid inventing a backend cause or playing unverified actions.
-- [ ] Run TypeScript compiler and production build; `git diff --check`; no tests or behavioral probes. Commit.
-- [ ] Request one fresh read-only static review; fix material findings in one pass with compiler/build only.
-- [ ] Update M2.6 record with layout, timing observability and honest remaining human acceptance. Commit; keep branch for user camera/speech timing acceptance.
+- [x] Add monotonic timing from stable completion through SDK speak invocation, surfaced as concise UI status. Do not claim per-request voice start when the SDK callback has no request ID.
+- [x] Statically trace measured delays and the existing serialized lane. Dispatch without waiting for a full utterance; retain per-request settlement tracking so cancellation cleanup is generation guarded and cannot interrupt a newer response.
+- [x] Run TypeScript compiler and production build; `git diff --check`; no tests or behavioral probes. Commit.
+- [x] Request one fresh read-only static review; fix material findings in one pass with compiler/build only.
+- [x] Update M2.6 record with layout, timing observability and honest remaining human acceptance. Commit; keep branch for user camera/speech timing acceptance.

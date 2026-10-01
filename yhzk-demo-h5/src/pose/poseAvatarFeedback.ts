@@ -15,7 +15,6 @@ export interface PoseAvatarFeedbackState {
   error: string;
   timing: {
     eventToSubmitMs: number | null;
-    submitToVoiceStartMs: number | null;
   } | null;
 }
 
@@ -25,7 +24,6 @@ export interface PoseAvatarFeedbackPort {
     feedback: PoseAvatarFeedback,
     signal: AbortSignal,
     onSubmitted: () => void,
-    onVoiceStarted: (atMs: number) => void,
     onFailure: () => void,
   ): Promise<boolean>;
   interrupt(): Promise<void>;
@@ -61,7 +59,6 @@ export class PoseAvatarFeedbackController {
   private active = false;
   private lastKey: string | null = null;
   private delivery: AbortController | null = null;
-  private submittedAtMs: number | null = null;
   private view: PoseAvatarFeedbackState = { status: 'unavailable', text: '', error: '', timing: null };
 
   constructor(
@@ -92,7 +89,6 @@ export class PoseAvatarFeedbackController {
     const previous = this.delivery;
     this.delivery = null;
     this.lastKey = null;
-    this.submittedAtMs = null;
     previous?.abort();
     if (previous) void this.port.interrupt().catch(() => {});
     this.emit({ status: this.port.isReady() ? 'ready' : 'unavailable', text: '', error: '', timing: null });
@@ -102,19 +98,6 @@ export class PoseAvatarFeedbackController {
     // Reconnection must not replay a pose_correct/completed event from the past.
     if (!available) this.invalidate();
     else this.emit({ status: 'ready', text: '', error: '', timing: null });
-  }
-
-  recordVoiceStarted(atMs = performance.now()): void {
-    const timing = this.view.timing;
-    if (this.submittedAtMs === null || !timing || timing.eventToSubmitMs === null || timing.submitToVoiceStartMs !== null
-      || !this.delivery || this.delivery.signal.aborted) return;
-    this.emit({
-      ...this.view,
-      timing: {
-        ...timing,
-        submitToVoiceStartMs: Math.max(0, atMs - this.submittedAtMs),
-      },
-    });
   }
 
   handleEvent(event: PerceptionEvent): void {
@@ -128,11 +111,9 @@ export class PoseAvatarFeedbackController {
   private deliver(feedback: PoseAvatarFeedback, eventAtMs = performance.now()): void {
     const previous = this.delivery;
     previous?.abort();
-    // Abort cancels our dispatch guards; interrupt also stops SDK playback now.
-    // send() joins the trailing cleanup barrier before submitting the replacement.
+    // Abort cancels old dispatch guards; interrupt stops old playback before replacement.
     if (previous) void this.port.interrupt().catch(() => {});
     this.lastKey = feedback.key;
-    this.submittedAtMs = null;
     if (!this.port.isReady()) {
       this.delivery = null;
       this.emit({ status: 'unavailable', text: '', error: '', timing: null });
@@ -142,20 +123,22 @@ export class PoseAvatarFeedbackController {
     this.delivery = delivery;
     this.emit({
       status: 'sending', text: feedback.text, error: '',
-      timing: { eventToSubmitMs: null, submitToVoiceStartMs: null },
+      timing: { eventToSubmitMs: null },
     });
+    let failed = false;
     void this.port.send(feedback, delivery.signal, () => {
       if (this.delivery !== delivery || delivery.signal.aborted) return;
-      this.submittedAtMs = performance.now();
+      const submittedAtMs = performance.now();
       this.emit({
         ...this.view,
-        timing: { eventToSubmitMs: Math.max(0, this.submittedAtMs - eventAtMs), submitToVoiceStartMs: null },
+        timing: { eventToSubmitMs: Math.max(0, submittedAtMs - eventAtMs) },
       });
-    }, (atMs) => this.recordVoiceStarted(atMs), () => {
+    }, () => {
       if (this.delivery !== delivery || delivery.signal.aborted) return;
+      failed = true;
       this.emit({ ...this.view, status: 'error', text: '', error: '数字人反馈未能发送，请重新连接数字人。' });
     }).then((submitted) => {
-      if (this.delivery !== delivery || delivery.signal.aborted) return;
+      if (this.delivery !== delivery || delivery.signal.aborted || failed) return;
       this.emit({
         ...this.view,
         status: submitted ? 'submitted' : 'ready',

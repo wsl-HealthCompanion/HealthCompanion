@@ -536,7 +536,7 @@ Status (2026-10-01): user accepted this stage after observing the digital human 
 
 ### M2.6 — End-to-End Verification
 
-Status (2026-10-01): development started. The training page is being adjusted to show camera/avatar side-by-side and expose two monotonic response timings (pose event→SDK speak call, SDK call→voice-state start). Human camera/SDK and 30-second performance acceptance remains pending; see `2026-10-01-m2-6-implementation-record.md`.
+Status (2026-10-01): layout and event→SDK-call timing are implemented. The JS SDK voice-start callback has no request ID, so response-onset timing is left for human observation rather than attributed to a delivery. Human camera/SDK and 30-second performance acceptance remains pending; see `2026-10-01-m2-6-implementation-record.md`.
 
 Observed sequence:
 start

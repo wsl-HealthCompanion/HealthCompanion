@@ -64,9 +64,12 @@ button {
 
 .pose-lab__practice-row {
   display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(320px, .75fr);
   align-items: stretch;
   gap: 22px;
+}
+
+.pose-lab__practice-row--with-avatar {
+  grid-template-columns: minmax(0, 1.25fr) minmax(320px, .75fr);
 }
 
 .pose-lab__avatar-column,
@@ -103,7 +106,7 @@ button {
 }
 
 @media (max-width: 860px) {
-  .pose-lab__practice-row {
+  .pose-lab__practice-row--with-avatar {
     grid-template-columns: minmax(0, 1.15fr) minmax(270px, .85fr);
     gap: 14px;
   }
@@ -119,7 +122,7 @@ button {
 }
 
 @media (max-width: 700px) {
-  .pose-lab__practice-row {
+  .pose-lab__practice-row--with-avatar {
     grid-template-columns: minmax(0, 1fr);
   }
 }

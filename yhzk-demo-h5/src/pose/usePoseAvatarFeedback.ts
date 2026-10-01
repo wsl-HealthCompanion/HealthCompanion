@@ -10,8 +10,8 @@ export function usePoseAvatarFeedback() {
   });
   const [controller] = useState(() => new PoseAvatarFeedbackController({
     isReady: () => xmovAvatar.isReady(),
-    send: (feedback, signal, onSubmitted, onVoiceStarted, onFailure) => xmovAvatar.sendPoseFeedback(
-      feedback.text, feedback.action, signal, onSubmitted, onVoiceStarted, onFailure,
+    send: (feedback, signal, onSubmitted, onFailure) => xmovAvatar.sendPoseFeedback(
+      feedback.text, feedback.action, signal, onSubmitted, onFailure,
     ),
     interrupt: () => xmovAvatar.interrupt(),
   }, (next) => { if (mountedRef.current) setState(next); }));
