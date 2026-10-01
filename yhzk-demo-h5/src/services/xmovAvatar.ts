@@ -192,7 +192,14 @@ class XmovAvatarBridge {
     await provider.playAction(semantic);
   }
 
-  sendPoseFeedback(text: string, actionKey: PoseFeedbackAction | undefined, signal: AbortSignal): Promise<boolean> {
+  sendPoseFeedback(
+    text: string,
+    actionKey: PoseFeedbackAction | undefined,
+    signal: AbortSignal,
+    onSubmitted?: () => void,
+    onVoiceStarted?: (atMs: number) => void,
+    onFailure?: () => void,
+  ): Promise<boolean> {
     const lane = this.feedbackLane;
     lane.pending += 1;
     const provider = this.provider;
@@ -209,7 +216,16 @@ class XmovAvatarBridge {
       }
       await provider.interrupt();
       if (!current()) return false;
-      await provider.speakFeedback(text, entry?.semantic ?? null, `pose_${generation}`);
+      const speech = provider.speakFeedback(
+        text,
+        entry?.semantic ?? null,
+        `pose_${generation}`,
+        () => { if (current()) onSubmitted?.(); },
+        (atMs) => { if (current()) onVoiceStarted?.(atMs); },
+      );
+      // Queue the SDK invocation, not the entire utterance. Waiting for end-of-speech
+      // delayed the next stable response by however long the previous speech lasted.
+      void speech.catch(() => { if (current()) onFailure?.(); });
       return current(); // submitted, not evidence of audible/visible completion
     });
     lane.tail = work.then(

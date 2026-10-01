@@ -367,6 +367,14 @@ summary:focus-visible {
   background: #f3f7f4;
 }
 
+.pose-avatar__timing {
+  margin: 8px 0 0;
+  color: #58665d;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.5;
+}
+
 .pose-avatar__controls {
   display: flex;
   flex-wrap: wrap;

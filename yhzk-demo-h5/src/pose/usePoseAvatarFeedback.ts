@@ -6,11 +6,13 @@ import type { PoseTrainingObserver } from './usePoseTrainingSession';
 export function usePoseAvatarFeedback() {
   const mountedRef = useRef(true);
   const [state, setState] = useState<PoseAvatarFeedbackState>({
-    status: 'unavailable', text: '', error: '',
+    status: 'unavailable', text: '', error: '', timing: null,
   });
   const [controller] = useState(() => new PoseAvatarFeedbackController({
     isReady: () => xmovAvatar.isReady(),
-    send: (feedback, signal) => xmovAvatar.sendPoseFeedback(feedback.text, feedback.action, signal),
+    send: (feedback, signal, onSubmitted, onVoiceStarted, onFailure) => xmovAvatar.sendPoseFeedback(
+      feedback.text, feedback.action, signal, onSubmitted, onVoiceStarted, onFailure,
+    ),
     interrupt: () => xmovAvatar.interrupt(),
   }, (next) => { if (mountedRef.current) setState(next); }));
   const observer = useMemo<PoseTrainingObserver>(() => ({

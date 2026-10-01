@@ -13,11 +13,21 @@ export interface PoseAvatarFeedbackState {
   status: 'unavailable' | 'ready' | 'sending' | 'submitted' | 'error';
   text: string;
   error: string;
+  timing: {
+    eventToSubmitMs: number | null;
+    submitToVoiceStartMs: number | null;
+  } | null;
 }
 
 export interface PoseAvatarFeedbackPort {
   isReady(): boolean;
-  send(feedback: PoseAvatarFeedback, signal: AbortSignal): Promise<boolean>;
+  send(
+    feedback: PoseAvatarFeedback,
+    signal: AbortSignal,
+    onSubmitted: () => void,
+    onVoiceStarted: (atMs: number) => void,
+    onFailure: () => void,
+  ): Promise<boolean>;
   interrupt(): Promise<void>;
 }
 
@@ -51,6 +61,8 @@ export class PoseAvatarFeedbackController {
   private active = false;
   private lastKey: string | null = null;
   private delivery: AbortController | null = null;
+  private submittedAtMs: number | null = null;
+  private view: PoseAvatarFeedbackState = { status: 'unavailable', text: '', error: '', timing: null };
 
   constructor(
     private readonly port: PoseAvatarFeedbackPort,
@@ -80,49 +92,83 @@ export class PoseAvatarFeedbackController {
     const previous = this.delivery;
     this.delivery = null;
     this.lastKey = null;
+    this.submittedAtMs = null;
     previous?.abort();
     if (previous) void this.port.interrupt().catch(() => {});
-    this.onChange({ status: this.port.isReady() ? 'ready' : 'unavailable', text: '', error: '' });
+    this.emit({ status: this.port.isReady() ? 'ready' : 'unavailable', text: '', error: '', timing: null });
   }
 
   setAvailable(available: boolean): void {
     // Reconnection must not replay a pose_correct/completed event from the past.
     if (!available) this.invalidate();
-    else this.onChange({ status: 'ready', text: '', error: '' });
+    else this.emit({ status: 'ready', text: '', error: '', timing: null });
+  }
+
+  recordVoiceStarted(atMs = performance.now()): void {
+    const timing = this.view.timing;
+    if (this.submittedAtMs === null || !timing || timing.eventToSubmitMs === null || timing.submitToVoiceStartMs !== null
+      || !this.delivery || this.delivery.signal.aborted) return;
+    this.emit({
+      ...this.view,
+      timing: {
+        ...timing,
+        submitToVoiceStartMs: Math.max(0, atMs - this.submittedAtMs),
+      },
+    });
   }
 
   handleEvent(event: PerceptionEvent): void {
     if (!this.active) return;
     const feedback = feedbackForPoseEvent(event);
     if (!feedback || feedback.key === this.lastKey) return;
-    this.deliver(feedback);
+    this.deliver(feedback, event.timestampMs);
     if (event.event === 'completed') this.active = false;
   }
 
-  private deliver(feedback: PoseAvatarFeedback): void {
+  private deliver(feedback: PoseAvatarFeedback, eventAtMs = performance.now()): void {
     const previous = this.delivery;
     previous?.abort();
     // Abort cancels our dispatch guards; interrupt also stops SDK playback now.
     // send() joins the trailing cleanup barrier before submitting the replacement.
     if (previous) void this.port.interrupt().catch(() => {});
     this.lastKey = feedback.key;
+    this.submittedAtMs = null;
     if (!this.port.isReady()) {
       this.delivery = null;
-      this.onChange({ status: 'unavailable', text: '', error: '' });
+      this.emit({ status: 'unavailable', text: '', error: '', timing: null });
       return;
     }
     const delivery = new AbortController();
     this.delivery = delivery;
-    this.onChange({ status: 'sending', text: feedback.text, error: '' });
-    void this.port.send(feedback, delivery.signal).then((submitted) => {
+    this.emit({
+      status: 'sending', text: feedback.text, error: '',
+      timing: { eventToSubmitMs: null, submitToVoiceStartMs: null },
+    });
+    void this.port.send(feedback, delivery.signal, () => {
       if (this.delivery !== delivery || delivery.signal.aborted) return;
-      this.onChange({
+      this.submittedAtMs = performance.now();
+      this.emit({
+        ...this.view,
+        timing: { eventToSubmitMs: Math.max(0, this.submittedAtMs - eventAtMs), submitToVoiceStartMs: null },
+      });
+    }, (atMs) => this.recordVoiceStarted(atMs), () => {
+      if (this.delivery !== delivery || delivery.signal.aborted) return;
+      this.emit({ ...this.view, status: 'error', text: '', error: '数字人反馈未能发送，请重新连接数字人。' });
+    }).then((submitted) => {
+      if (this.delivery !== delivery || delivery.signal.aborted) return;
+      this.emit({
+        ...this.view,
         status: submitted ? 'submitted' : 'ready',
         text: submitted ? feedback.text : '', error: '',
       });
     }).catch(() => {
       if (this.delivery !== delivery || delivery.signal.aborted) return;
-      this.onChange({ status: 'error', text: '', error: '数字人反馈未能发送，请重新连接数字人。' });
+      this.emit({ ...this.view, status: 'error', text: '', error: '数字人反馈未能发送，请重新连接数字人。' });
     });
+  }
+
+  private emit(state: PoseAvatarFeedbackState): void {
+    this.view = state;
+    this.onChange(state);
   }
 }
