@@ -76,10 +76,25 @@ export function PoseFeedbackWidget(props: PoseFeedbackWidgetProps) {
         {guidance(props)}
       </p>
 
+      <div className="pose-feedback__controls">
+        {(snapshot.status === 'idle' || snapshot.status === 'completed') && (
+          <button type="button" onClick={onStart} disabled={!canStart}>
+            {snapshot.status === 'completed' ? '再做一次' : '开始训练'}
+          </button>
+        )}
+        {active && <button type="button" onClick={onPause}>暂停训练</button>}
+        {snapshot.status === 'paused' && (
+          <button type="button" onClick={onResume} disabled={!canStart}>继续训练</button>
+        )}
+        {snapshot.status !== 'idle' && (
+          <button type="button" className="pose-feedback__secondary" onClick={onStop}>结束训练</button>
+        )}
+      </div>
+
       <div className="pose-feedback__angles">
         {(['left', 'right'] as const).map((side) => {
           const arm = measurement?.[side];
-          const available = arm?.visible === true && arm.angleDeg !== null;
+          const available = arm?.visible === true && arm.angleDeg !== null && Number.isFinite(arm.angleDeg);
           const needsAdjustment = assessment?.issues.some((issue) => issue.startsWith(`${side}_arm_`));
           const armState = !available || !measurement?.bodyVisible ? 'unknown'
             : needsAdjustment ? 'adjust' : 'ok';
@@ -109,20 +124,6 @@ export function PoseFeedbackWidget(props: PoseFeedbackWidgetProps) {
       )}
       {assessment?.correct && snapshot.status === 'idle' && <p>当前姿势已在目标范围内。</p>}
 
-      <div className="pose-feedback__controls">
-        {(snapshot.status === 'idle' || snapshot.status === 'completed') && (
-          <button type="button" onClick={onStart} disabled={!canStart}>
-            {snapshot.status === 'completed' ? '再做一次' : '开始训练'}
-          </button>
-        )}
-        {active && <button type="button" onClick={onPause}>暂停训练</button>}
-        {snapshot.status === 'paused' && (
-          <button type="button" onClick={onResume} disabled={!canStart}>继续训练</button>
-        )}
-        {snapshot.status !== 'idle' && (
-          <button type="button" className="pose-feedback__secondary" onClick={onStop}>结束训练</button>
-        )}
-      </div>
       <p className="pose-feedback__note">左右以你本人为准。结束训练后可继续查看摄像头画面。</p>
     </section>
   );

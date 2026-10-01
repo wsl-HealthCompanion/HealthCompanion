@@ -24,6 +24,8 @@ import type {
   CameraStatus,
   PoseFrame,
 } from '../pose/types';
+import { usePoseTrainingSession } from '../pose/usePoseTrainingSession';
+import { PoseFeedbackWidget, type PoseFeedbackWidgetProps } from './PoseFeedbackWidget';
 
 export interface PoseLabViewState {
   cameraStatus: CameraStatus;
@@ -42,6 +44,8 @@ export interface PoseLabViewProps {
   selectedCameraId?: string;
   cameraLabel?: string;
   videoDimensions?: string;
+  videoAspectRatio?: number;
+  training?: PoseFeedbackWidgetProps;
   onSelectCamera?: (deviceId: string) => void;
   videoElement: ReactNode;
 }
@@ -236,25 +240,30 @@ export function PoseLabView({
   selectedCameraId = '',
   cameraLabel = '',
   videoDimensions = '',
+  videoAspectRatio,
+  training,
   onSelectCamera,
   videoElement,
 }: PoseLabViewProps) {
-  const frame = state.frame;
+  const observationFresh = !training || training.hasFreshSample;
+  const frame = observationFresh ? state.frame : null;
+  const diagnostics = observationFresh ? state.diagnostics : EMPTY_DIAGNOSTICS;
 
   return (
     <main className="pose-lab">
       <header className="pose-lab__header">
-        <span className="pose-lab__badge">Milestone 2.1 · Camera + Pose Probe</span>
-        <h1>Pose Lab</h1>
+        <span className="pose-lab__badge">{training ? 'Pose Lab · 实时姿态练习' : 'Milestone 2.1 · Camera + Pose Probe'}</span>
+        <h1>{training ? '肩部动作练习' : 'Pose Lab'}</h1>
         <p>
-          仅在浏览器本地读取摄像头画面并探测上半身关键点，
-          当前阶段不判断动作是否正确。
+          {training
+            ? '开启摄像头，让上半身完整进入画面。开始训练后，将双臂抬至肩部高度并保持三秒。'
+            : '仅在浏览器本地读取摄像头画面并探测上半身关键点，当前阶段不判断动作是否正确。'}
         </p>
       </header>
 
       <section className="pose-lab__workspace">
         <div className="pose-lab__camera-column">
-          <div className="pose-lab__stage">
+          <div className="pose-lab__stage" style={videoAspectRatio ? { aspectRatio: videoAspectRatio } : undefined}>
             {videoElement}
             {state.cameraStatus !== 'active' && (
               <div className="pose-lab__camera-placeholder" role="status">
@@ -265,11 +274,17 @@ export function PoseLabView({
                     : '点击“开启摄像头”查看实时画面'}
               </div>
             )}
-            {frame && <PoseOverlay frame={frame} />}
+            {frame && (!training || training.hasFreshSample) && <PoseOverlay frame={frame} />}
+            {training && state.cameraStatus === 'active' && state.modelStatus === 'ready'
+              && !training.hasFreshSample && (
+                <div className="pose-lab__observation-notice">正在等待新的姿态画面</div>
+              )}
           </div>
 
           <div className="pose-lab__controls">
-            {state.cameraStatus === 'active' ? (
+            {state.cameraStatus === 'requesting' ? (
+              <button type="button" onClick={onStopCamera}>取消连接</button>
+            ) : state.cameraStatus === 'active' ? (
               <button type="button" onClick={onStopCamera}>
                 关闭摄像头
               </button>
@@ -277,7 +292,6 @@ export function PoseLabView({
               <button
                 type="button"
                 onClick={onStartCamera}
-                disabled={state.cameraStatus === 'requesting'}
               >
                 开启摄像头
               </button>
@@ -302,6 +316,7 @@ export function PoseLabView({
         </div>
 
         <aside className="pose-lab__diagnostics">
+          {training && <PoseFeedbackWidget {...training} />}
           <section className="pose-lab__panel">
             <h2>运行状态</h2>
             <p>{cameraStatusText(state.cameraStatus)}</p>
@@ -315,6 +330,9 @@ export function PoseLabView({
             )}
           </section>
 
+          <details className="pose-lab__probe-details">
+            <summary>识别详情</summary>
+            <div className="pose-lab__probe-panels">
           <section className="pose-lab__panel">
             <h2>探针性能</h2>
             <div className="pose-lab__metrics">
@@ -323,7 +341,7 @@ export function PoseLabView({
                   ? '—'
                   : state.stats.lastInferenceMs.toFixed(1)} ms
               </span>
-              <span>{state.stats.effectiveFps} FPS</span>
+              <span>{observationFresh ? state.stats.effectiveFps : 0} FPS</span>
               <span>跳帧 {state.stats.skippedFrames}</span>
             </div>
           </section>
@@ -332,19 +350,19 @@ export function PoseLabView({
             <h2>校准测量</h2>
             <div className="pose-lab__metrics pose-lab__metrics--stack">
               <span>
-                肩宽 {formatMetric(state.diagnostics.shoulderWidth)}
+                肩宽 {formatMetric(diagnostics.shoulderWidth)}
               </span>
               <span>
-                躯干高度 {formatMetric(state.diagnostics.torsoHeight)}
+                躯干高度 {formatMetric(diagnostics.torsoHeight)}
               </span>
               <span>
-                BBox {state.diagnostics.upperBodyBox
+                BBox {diagnostics.upperBodyBox
                   ? [
-                      formatMetric(state.diagnostics.upperBodyBox.xMin),
-                      formatMetric(state.diagnostics.upperBodyBox.yMin),
+                      formatMetric(diagnostics.upperBodyBox.xMin),
+                      formatMetric(diagnostics.upperBodyBox.yMin),
                       '→',
-                      formatMetric(state.diagnostics.upperBodyBox.xMax),
-                      formatMetric(state.diagnostics.upperBodyBox.yMax),
+                      formatMetric(diagnostics.upperBodyBox.xMax),
+                      formatMetric(diagnostics.upperBodyBox.yMax),
                     ].join(', ').replace(', →,', ' →')
                   : '—'}
               </span>
@@ -369,6 +387,8 @@ export function PoseLabView({
               </ul>
             )}
           </section>
+            </div>
+          </details>
         </aside>
       </section>
     </main>
@@ -404,6 +424,7 @@ export default function PoseLabPage() {
   const loopRef = useRef<PoseProbeLoop | null>(null);
   const runGateRef = useRef(new PoseLabRunGate());
   const mountedRef = useRef(true);
+  const detachTrackEndedRef = useRef<(() => void) | null>(null);
 
   const [state, setState] = useState<PoseLabViewState>({
     cameraStatus: 'idle',
@@ -417,6 +438,9 @@ export default function PoseLabPage() {
   const [selectedCameraId, setSelectedCameraId] = useState('');
   const [cameraLabel, setCameraLabel] = useState('');
   const [videoDimensions, setVideoDimensions] = useState('');
+  const [videoAspectRatio, setVideoAspectRatio] = useState<number | undefined>();
+  const trainingReady = state.cameraStatus === 'active' && state.modelStatus === 'ready';
+  const training = usePoseTrainingSession(trainingReady);
 
   const refreshCameraDevices = async (): Promise<CameraDeviceOption[]> => {
     try {
@@ -447,6 +471,8 @@ export default function PoseLabPage() {
     return () => {
       mountedRef.current = false;
       runGateRef.current.invalidate();
+      detachTrackEndedRef.current?.();
+      detachTrackEndedRef.current = null;
       disposePoseLabRuntime({
         camera: cameraRef.current,
         loop: {
@@ -473,6 +499,11 @@ export default function PoseLabPage() {
     }
 
     const runToken = runGateRef.current.begin();
+    training.clearObservation();
+    detachTrackEndedRef.current?.();
+    detachTrackEndedRef.current = null;
+    setVideoDimensions('');
+    setVideoAspectRatio(undefined);
 
     setState((current) => ({
       ...current,
@@ -486,7 +517,8 @@ export default function PoseLabPage() {
         !mountedRef.current
         || !runGateRef.current.isCurrent(runToken)
       ) {
-        camera.stop();
+        // Release this startup's stream, not a newer camera selected while awaiting.
+        for (const track of stream.getTracks()) track.stop();
         return;
       }
 
@@ -503,7 +535,7 @@ export default function PoseLabPage() {
         !mountedRef.current
         || !runGateRef.current.isCurrent(runToken)
       ) {
-        camera.stop();
+        for (const track of stream.getTracks()) track.stop();
         return;
       }
       const hardwareCamera = devices.find((item) => !isVirtualCameraLabel(item.label));
@@ -535,6 +567,21 @@ export default function PoseLabPage() {
       }
 
       setVideoDimensions(`${video.videoWidth} × ${video.videoHeight}`);
+      setVideoAspectRatio(video.videoWidth / video.videoHeight);
+      if (videoTrack) {
+        if (videoTrack.readyState === 'ended') throw new Error('摄像头连接已中断，请重新开启摄像头。');
+        const onTrackEnded = () => {
+          if (!mountedRef.current || !runGateRef.current.isCurrent(runToken)) return;
+          stopCamera();
+          setState((current) => ({
+            ...current,
+            cameraStatus: 'error',
+            error: '摄像头连接已中断，请重新开启摄像头。',
+          }));
+        };
+        videoTrack.addEventListener('ended', onTrackEnded);
+        detachTrackEndedRef.current = () => videoTrack.removeEventListener('ended', onTrackEnded);
+      }
 
       setState((current) => ({
         ...current,
@@ -564,6 +611,7 @@ export default function PoseLabPage() {
           ) {
             return;
           }
+          training.suspendObservation();
           setState((current) => ({
             ...current,
             modelStatus: 'error',
@@ -599,6 +647,7 @@ export default function PoseLabPage() {
             !mountedRef.current
             || !runGateRef.current.isCurrent(runToken)
           ) return;
+          training.ingest(sample.frame);
           setState((current) => ({
             ...current,
             frame: sample.frame,
@@ -611,9 +660,13 @@ export default function PoseLabPage() {
             !mountedRef.current
             || !runGateRef.current.isCurrent(runToken)
           ) return;
+          training.suspendObservation();
           setState((current) => ({
             ...current,
             modelStatus: 'error',
+            frame: null,
+            stats: EMPTY_STATS,
+            diagnostics: EMPTY_DIAGNOSTICS,
             error: error.message,
           }));
         },
@@ -641,6 +694,9 @@ export default function PoseLabPage() {
         }
       }
       const streamWasActive = camera.getStatus() === 'active';
+      training.clearObservation();
+      detachTrackEndedRef.current?.();
+      detachTrackEndedRef.current = null;
       if (streamWasActive) {
         stopPoseLabRuntime({
           camera,
@@ -653,6 +709,9 @@ export default function PoseLabPage() {
       setState((current) => ({
         ...current,
         cameraStatus: streamWasActive ? 'error' : camera.getStatus(),
+        frame: null,
+        stats: EMPTY_STATS,
+        diagnostics: EMPTY_DIAGNOSTICS,
         error: camera.getError()
           || (error instanceof Error ? error.message : String(error)),
       }));
@@ -661,6 +720,9 @@ export default function PoseLabPage() {
 
   const stopCamera = () => {
     runGateRef.current.invalidate();
+    training.clearObservation();
+    detachTrackEndedRef.current?.();
+    detachTrackEndedRef.current = null;
     stopPoseLabRuntime({
       camera: cameraRef.current,
       loop: {
@@ -668,6 +730,8 @@ export default function PoseLabPage() {
       },
       video: videoRef.current,
     });
+    setVideoDimensions('');
+    setVideoAspectRatio(undefined);
 
     setState((current) => ({
       ...current,
@@ -700,6 +764,20 @@ export default function PoseLabPage() {
       selectedCameraId={selectedCameraId}
       cameraLabel={cameraLabel}
       videoDimensions={videoDimensions}
+      videoAspectRatio={videoAspectRatio}
+      training={{
+        ...training.view,
+        isReady: trainingReady,
+        unavailableMessage: state.cameraStatus !== 'active'
+          ? '请先开启摄像头，让上半身完整进入画面。'
+          : state.modelStatus === 'error'
+            ? '姿态识别已暂停，请关闭后重新开启摄像头。'
+            : '正在准备姿态识别，请稍候。',
+        onStart: training.start,
+        onPause: training.pause,
+        onResume: training.resume,
+        onStop: training.stopTraining,
+      }}
       onSelectCamera={selectCamera}
       videoElement={(
         <video
@@ -708,6 +786,15 @@ export default function PoseLabPage() {
           autoPlay
           muted
           playsInline
+          onResize={(event) => {
+            const video = event.currentTarget;
+            if (cameraRef.current.getStatus() === 'active'
+              && video.srcObject === cameraRef.current.getStream()
+              && video.videoWidth > 0 && video.videoHeight > 0) {
+              setVideoDimensions(`${video.videoWidth} × ${video.videoHeight}`);
+              setVideoAspectRatio(video.videoWidth / video.videoHeight);
+            }
+          }}
         />
       )}
     />

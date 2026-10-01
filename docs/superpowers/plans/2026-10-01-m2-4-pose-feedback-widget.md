@@ -42,9 +42,9 @@
 - Produces: `PoseFeedbackWidget` with snapshot, assessment, hasFreshSample, isReady, onStart/onPause/onResume/onStop props.
 - Displays Chinese status/guidance, finite per-side angles, target range, torso, all issues, framing, progress and explicit controls. Completed guidance suppresses further posture corrections until new start. Timer display floors elapsed tenths so3.0cannot display before completion.
 
-- [ ] Implement widget from current scalar assessment and session snapshot; keep volatile angle/hold values outside live-announcement regions.
-- [ ] Add responsive styling consistent with the existing page, focus indicators and accessible progress/control labels.
-- [ ] Run frontend compiler; expected exit0. Commit Task1 files; record no automated tests.
+- [x] Implement widget from current scalar assessment and session snapshot; keep volatile angle/hold values outside live-announcement regions.
+- [x] Add responsive styling consistent with the existing page, focus indicators and accessible progress/control labels.
+- [x] Run frontend compiler; expected exit0. Commit Task1 files; record no automated tests.
 
 ### Task 2: Live sample and lifecycle integration
 
@@ -59,10 +59,10 @@
 - Produces: `usePoseTrainingSession(enabled)` with view {snapshot,assessment,hasFreshSample,latestEvent}, ingest(frame), start/pause/resume/stopTraining, clearObservation and suspendObservation.
 - Page optional training view prop maintains the standalone camera-view caller contract; actual PoseLabPage always supplies widget data/handlers.
 
-- [ ] Implement stable callback/ref ownership, one update per fresh sample, a50ms expiry-only interval when camera/model is ready, explicit lifecycle controls and independent live assessment after completion.
-- [ ] Pause on document hidden; clear live measurements on gaps/errors; cancel all scheduling and reset controller on unmount. Enable start/resume only with ready camera/model, a fresh sample and visible page.
-- [ ] Integrate widget and loop callbacks. Reset on camera stop/switch/new startup, pause on inference error, handle ended video tracks with detachable listeners and camera cleanup. Keep readiness/error state truthful.
-- [ ] Update page title/instructions; preserve source selector, FPS/calibration and landmark diagnostics; hide stale overlay.
-- [ ] Run npm run build and git diff --check; expected exit0. Do not run automated tests or exercise webcam behavior.
-- [ ] Document user flow, lifecycle, events, remaining M2.5/M2.6 work and unexecuted acceptance; commit implementation.
+- [x] Implement stable callback/ref ownership, one update per fresh sample, a50ms expiry-only interval when camera/model is ready, explicit lifecycle controls and independent live assessment after completion.
+- [x] Pause on document hidden; clear live measurements on gaps/errors; cancel all scheduling and reset controller on unmount. Enable start/resume only with ready camera/model, a fresh sample and visible page.
+- [x] Integrate widget and loop callbacks. Reset on camera stop/switch/new startup, pause on inference error, handle ended video tracks with detachable listeners and camera cleanup. Keep readiness/error state truthful.
+- [x] Update page title/instructions; preserve source selector, FPS/calibration and landmark diagnostics; hide stale overlay.
+- [x] Run npm run build and git diff --check; expected exit0. Do not run automated tests or exercise webcam behavior.
+- [x] Document user flow, lifecycle, events, remaining M2.5/M2.6 work and unexecuted acceptance; commit implementation.
 - [ ] Request one fresh read-only static review; fix material findings without adding/running tests. Save review and retain feature branch.
