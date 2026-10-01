@@ -11,7 +11,7 @@
     "preview": "vite preview --host",
     "test:xmov-action-lab": "vitest run src/avatar/xmovActions.spec.ts src/components/XmovActionLabPage.spec.tsx src/avatar/xmovKa.spec.ts src/avatar/XmovAvatarProvider.playAction.spec.ts src/services/xmovAvatar.playAction.spec.ts src/avatar/actionRegistry.spec.ts",
     "dev:xmov-actions": "vite --host --open /xmov-action-lab.html",
-    "test:pose-lab": "vitest run src/pose/cameraSession.spec.ts src/pose/poseLandmarkerAdapter.spec.ts src/pose/poseProbeDiagnostics.spec.ts src/pose/poseProbeLoop.spec.ts src/components/PoseLabPage.spec.tsx"
+    "test:pose-lab": "vitest run src/pose/cameraSession.spec.ts src/pose/poseLandmarkerAdapter.spec.ts src/pose/poseProbeDiagnostics.spec.ts src/pose/poseProbeLoop.spec.ts src/pose/shoulderRaiseGeometry.spec.ts src/pose/shoulderRaiseRules.spec.ts src/components/PoseLabPage.spec.tsx"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "1.0.1",

@@ -1,6 +1,6 @@
 # M2.2 — Shoulder Raise Rule Engine Implementation Plan
 
-> **For agentic workers:** Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Convert local PoseFrame data into deterministic, testable shoulder-raise measurements and ordered posture issues.
 
@@ -42,12 +42,12 @@
 - Measurement: nullable timestamp, bodyVisible, left/right `{ angleDeg: number | null; visible: boolean }`, nullable torsoLeanDeg, framing enum.
 - Measurement config: visibilityThreshold and optional framing `{ minShoulderWidth, maxShoulderWidth, minTorsoHeight, maxTorsoHeight }`.
 
-- [ ] Write geometry tests for arms down 0°, horizontal 90°, raised 120°, left/right independence, non-square image correction, torso lean, missing/low-confidence/nonfinite/out-of-frame/degenerate data, optional wrists, null pose, and optional framing limits.
-- [ ] Run `npx vitest run src/pose/shoulderRaiseGeometry.spec.ts`; expect failure because the module does not exist.
-- [ ] Implement types and pure geometry. Compute shoulder→hip vs shoulder→elbow angle and midpoint torso deviation from vertical after multiplying x by width/height. Require valid core points; do not round measured angles. Without calibration return unknown; calibrated too_far requires both size measures below minima, too_close requires either above its maximum.
-- [ ] Extend adapter tests to require a copied source-image size and omit it for unavailable video dimensions; observe failure before changing adapter/types.
-- [ ] Attach valid video dimensions to the returned frame. Run geometry and adapter specs; expect all pass, including original adapter behavior.
-- [ ] Commit only Task 1 files; retain M2.1 edits.
+- [x] Write geometry tests for arms down 0°, horizontal 90°, raised 120°, left/right independence, non-square image correction, torso lean, missing/low-confidence/nonfinite/out-of-frame/degenerate data, optional wrists, null pose, and optional framing limits.
+- [x] Run `npx vitest run src/pose/shoulderRaiseGeometry.spec.ts`; expect failure because the module does not exist.
+- [x] Implement types and pure geometry. Compute shoulder→hip vs shoulder→elbow angle and midpoint torso deviation from vertical after multiplying x by width/height. Require valid core points; do not round measured angles. Without calibration return unknown; calibrated too_far requires both size measures below minima, too_close requires either above its maximum.
+- [x] Extend adapter tests to require a copied source-image size and omit it for unavailable video dimensions; observe failure before changing adapter/types.
+- [x] Attach valid video dimensions to the returned frame. Run geometry and adapter specs; expect all pass, including original adapter behavior.
+- [x] Commit only Task 1 files; retain M2.1 edits.
 
 ### Task 2: Configurable rule assessment and milestone record
 
@@ -61,10 +61,10 @@
 - Produces: `assessShoulderRaise(frame: PoseFrame | null, config?: ShoulderRaiseRuleConfig): PoseAssessment` and immutable default config.
 - Assessment: exercise shoulder_raise, correct, ordered issues, measurement. Rule config adds minArmAngleDeg, maxArmAngleDeg, maxTorsoLeanDeg.
 
-- [ ] Write tests for missing body, each low/high arm, both arms, correct, torso lean, calibrated framing, issue ordering, exact and near boundaries, alternate config, invalid config and recovery on the next frame.
-- [ ] Run `npx vitest run src/pose/shoulderRaiseRules.spec.ts`; expect missing-module failure.
-- [ ] Implement defaults 80/105/0.6/15 and finite/range config validation. Body failure emits only body_not_visible; otherwise collect framing, torso and left/right arm issues in that order. Correct requires no issues. Use only tiny numeric comparison tolerance for trigonometric boundary error.
-- [ ] Add the two geometry/rule specs to `test:pose-lab`; run it, expecting baseline probe tests and new tests all pass.
-- [ ] Run `npm run build` and `git diff --check`; expect successful build and no whitespace errors.
-- [ ] Record the user's M2.1 acceptance, M2.2 interfaces, uncalibrated framing, aspect handling, test evidence and the M2.3 handoff. Link the record in docs README.
+- [x] Write tests for missing body, each low/high arm, both arms, correct, torso lean, calibrated framing, issue ordering, exact and near boundaries, alternate config, invalid config and recovery on the next frame.
+- [x] Run `npx vitest run src/pose/shoulderRaiseRules.spec.ts`; expect missing-module failure.
+- [x] Implement defaults 80/105/0.6/15 and finite/range config validation. Body failure emits only body_not_visible; otherwise collect framing, torso and left/right arm issues in that order. Correct requires no issues. Use only tiny numeric comparison tolerance for trigonometric boundary error.
+- [x] Add the two geometry/rule specs to `test:pose-lab`; run it, expecting baseline probe tests and new tests all pass.
+- [x] Run `npm run build` and `git diff --check`; expect successful build and no whitespace errors.
+- [x] Record the user's M2.1 acceptance, M2.2 interfaces, uncalibrated framing, aspect handling, test evidence and the M2.3 handoff. Link the record in docs README.
 - [ ] Commit only Task 2 files. Request a fresh final code review under executing-plans; fix material findings with reproducing tests. Keep the branch locally for the next milestone.

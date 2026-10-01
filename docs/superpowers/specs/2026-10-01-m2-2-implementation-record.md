@@ -1,0 +1,56 @@
+# M2.2 肩部动作规则引擎实施记录
+
+日期：2026-10-01。分支：`feat/pose-shoulder-loop`。
+
+## 起点与范围
+
+用户已确认摄像头重开和人体关键点识别恢复，并明确回复「M2.1 没问题，继续」。M2.1 真人验收按用户确认通过；本记录不补造未提供的 FPS、推理耗时、肩宽或躯干高度数值。
+
+M2.2 交付纯 TypeScript 几何与逐帧判断模块，继续沿用既有 Milestone 2 设计。保持计时、PerceptionEvent、反馈 Widget、Xmov 播报和 LangGraph 分别属于 M2.3 及以后。
+
+## 已实现的接口
+
+- `measureShoulderRaise(frame, config?)`：从 PoseFrame 得到左右臂角度、可见性、躯干倾斜和镜头范围状态。
+- `assessShoulderRaise(frame, config?)`：返回 `exercise: shoulder_raise`、`correct`、按优先级排列的 `issues` 和 `measurement`。
+- `DEFAULT_SHOULDER_RAISE_RULE_CONFIG`：80°–105°（含边界）、可见度 0.6、躯干倾斜上限 15°（含边界），参数集中配置。
+- `PoseFrame.imageSize`：可选的源视频宽高，由 MediaPipe 适配器复制；不含图像或视频字节。
+
+下一阶段可直接消费 PoseAssessment；单帧的 `correct` 不代表已稳定保持，也不触发语音、计时或完成事件。
+
+## 规则行为
+
+| 输入情形 | 输出 |
+| --- | --- |
+| 手臂自然下垂 | 约 0°，对应侧 arm_too_low |
+| 手臂与直立躯干成水平 | 约 90°，进入目标范围 |
+| 手臂明显高于水平 | 例如 120°，对应侧 arm_too_high |
+| 一侧肩/肘/髋不可用或可见度不足 | body_not_visible，抑制角度纠正 |
+| 手腕不可见但肩/肘/髋有效 | 仍可计算肩角度 |
+| 躯干倾斜超过 15° | torso_lean |
+| 多个有效姿势问题 | 镜头范围 → 躯干 → 左臂 → 右臂，保留全部问题 |
+| 没有人或几何退化 | 空角度，不返回 correct |
+
+数据沿用人体解剖学左右；镜像只属于显示层。角度使用肩→髋和肩→肘向量；不依赖腕部、z 或 world landmarks。
+
+## 画面比例与镜头标定
+
+为防止横屏/竖屏比例改变角度，计算前按源视频宽高修正 x/y 的独立归一化。这来自 [MediaPipe 官方坐标定义](https://developers.google.com/edge/mediapipe/solutions/vision/pose_landmarker/python#handle_and_display_results)。这是图像平面的二维角度。
+
+镜头远近默认返回 `unknown`。已提供可选的归一化肩宽/躯干高度范围配置，待实际数值和镜头位置标定后启用；不估算厘米。
+
+旧测试数据没有 imageSize 时按方形坐标平面解释；真实视频适配器会附带有效源尺寸。明确传入无效尺寸时判断不可用，避免把错误比例当成正确动作。
+
+## 验证记录
+
+- 新增几何模块先观察缺少模块的失败，再实现并通过。
+- 适配器源尺寸测试先观察缺少 imageSize 的失败，再通过。
+- 新增规则模块先观察缺少模块的失败，再实现并通过。
+- Pose Lab：7 个 spec，124 个测试通过；包括原有摄像头、MediaPipe、探测循环和页面测试。
+- 前端生产构建：通过 TypeScript 检查和 Vite 构建。
+- 关键覆盖：左右侧独立、横竖屏、缺失/遮挡/越界/非有限坐标、零长度向量、边界值、规则优先级、自定义配置、逐帧恢复和不修改输入。
+
+本阶段没有把规则接入实时页面，真人完整规则反馈链路将在后续 Widget 接入及 M2.6 验收。自动测试不能替代那次真人验收。
+
+## M2.3 接续
+
+在 PoseAssessment 之上加入 PoseSessionController：稳定 500 ms 后确认状态，正确状态保持 3000 ms；失效取消保持；完成每次会话仅触发一次；输出结构化 PerceptionEvent。

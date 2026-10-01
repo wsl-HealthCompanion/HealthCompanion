@@ -24,6 +24,10 @@
 2. **Camera → Pose → Xmov Feedback**：用一个肩部动作跑通视觉共练闭环。
 3. **Tool Calling**：把 `pose_monitor / avatar_action / show_widget` 接入 LangGraph。
 
+### 3. [M2.2 肩部动作规则引擎实施记录](./superpowers/specs/2026-10-01-m2-2-implementation-record.md)
+
+记录 M2.1 的用户确认、M2.2 几何/规则接口、画面宽高比例修正、镜头范围标定边界和自动验证结果。下一阶段是 M2.3 稳定状态与保持计时。
+
 ## 文档约定
 
 后续新增以下类型内容，优先放在本目录：

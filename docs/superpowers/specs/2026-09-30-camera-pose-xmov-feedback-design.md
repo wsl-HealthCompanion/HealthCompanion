@@ -174,6 +174,7 @@ PoseFrame:
 - timestampMs: number
 - landmarks: PoseLandmarkPoint[]
 - worldLandmarks?: PoseLandmarkPoint[]
+- imageSize?: { width: number; height: number } (M2.2 source-image aspect correction)
 - inferenceMs: number
 
 All later M2 components consume PoseFrame, not MediaPipe-specific result objects.
@@ -213,6 +214,10 @@ Measure shoulder abduction with the angle at the shoulder between:
 - shoulder → elbow
 
 Use normalized 2D coordinates for the first implementation.
+
+M2.2 clarification (2026-10-01): MediaPipe normalizes x by image width and y by image height. Before measuring angles, scale x differences by width/height so both axes share the same scale. PoseFrame.imageSize is copied from the source video. Legacy frames without dimensions use a square-coordinate plane; explicitly invalid supplied dimensions make the measurement unavailable. This remains a 2D projected angle, not a 3D medical measurement.
+
+Core points must have finite coordinates within the image and sufficient finite visibility. Coincident vectors yield null angles; a degenerate torso cannot produce a correct assessment. Wrists remain optional.
 
 Interpretation:
 - arm alongside torso ≈ 0°
@@ -265,6 +270,8 @@ M2.2 may classify:
 No centimeter estimate is shown.
 
 If probe evidence is insufficient, ship unknown/ok rather than invent unreliable thresholds.
+
+M2.2 ships unknown by default. Optional, explicitly calibrated limits are min/max shoulder width and min/max torso height in normalized coordinates. Both size measures below their minima indicate too_far; either beyond its maximum indicates too_close. Missing usable shoulders/hips returns unknown. These limits are specific to the camera/framing setup, not physical distances.
 
 ## 13. Torso lean
 
