@@ -7,7 +7,7 @@ function escapeXmlText(value: string): string {
     .replace(/'/g, '&apos;');
 }
 
-export function buildXmovKaSsml(semantic: string): string {
+export function buildXmovKaSsml(semantic: string, text = ''): string {
   const normalized = semantic.trim();
   if (!normalized) {
     throw new Error('Xmov KA semantic is required');
@@ -19,6 +19,7 @@ export function buildXmovKaSsml(semantic: string): string {
     '<type>ka</type>',
     `<data><action_semantic>${escapeXmlText(normalized)}</action_semantic></data>`,
     '</ue4event>',
+    escapeXmlText(text.trim()),
     '</speak>',
   ].join('');
 }

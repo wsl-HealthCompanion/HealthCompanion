@@ -1,5 +1,7 @@
 import type { XmovAvatarProvider } from '../avatar/XmovAvatarProvider';
 import { planExpression, type ExpressionPlan } from '../avatar/expressionPlanner';
+import { resolveHealthAction } from '../avatar/actionRegistry';
+import type { PoseFeedbackAction } from '../pose/poseAvatarFeedback';
 
 interface RoundContext {
   id: string;
@@ -22,8 +24,13 @@ class XmovAvatarBridge {
   private generation = 0;
   private round: RoundContext | null = null;
   private queue: Promise<void> = Promise.resolve();
+  // Keep in-flight SDK calls ordered even after a generation is invalidated.
+  private feedbackTail: Promise<void> = Promise.resolve();
 
   attach(provider: XmovAvatarProvider): () => void {
+    this.generation += 1;
+    this.round = null;
+    this.queue = Promise.resolve();
     this.provider = provider;
     this.ready = false;
     return () => {
@@ -178,6 +185,28 @@ class XmovAvatarBridge {
     await provider.playAction(semantic);
   }
 
+  sendPoseFeedback(text: string, actionKey: PoseFeedbackAction | undefined, signal: AbortSignal): Promise<boolean> {
+    const provider = this.provider;
+    const generation = ++this.generation;
+    this.round = null;
+    this.queue = Promise.resolve();
+    const current = () => !signal.aborted && generation === this.generation
+      && provider === this.provider && Boolean(provider) && this.ready;
+    const work = this.feedbackTail.then(async () => {
+      if (!current() || !provider) return false;
+      const entry = actionKey ? resolveHealthAction(actionKey) : null;
+      if (actionKey && (!entry?.verified || !entry.semantic)) {
+        throw new Error('Pose feedback requires a verified action');
+      }
+      await provider.interrupt();
+      if (!current()) return false;
+      await provider.speakFeedback(text, entry?.semantic ?? null, `pose_${generation}`);
+      return current(); // submitted, not evidence of audible/visible completion
+    });
+    this.feedbackTail = work.then(() => {}, () => {});
+    return work;
+  }
+
   async interrupt(): Promise<void> {
     this.generation += 1;
     this.round = null;
@@ -185,11 +214,16 @@ class XmovAvatarBridge {
 
     const provider = this.provider;
     if (!provider || !this.ready) return;
-    try {
-      await provider.interrupt();
-    } catch {
-      // Interruption is best-effort; the next round can still proceed.
-    }
+    // Immediate interruption stops current playback. A trailing interruption also
+    // clears an SDK submission that finishes after cancel; new feedback waits for both.
+    const immediate = provider.interrupt().catch(() => {});
+    const trailing = this.feedbackTail.then(async () => {
+      await immediate;
+      if (this.provider !== provider) return;
+      try { await provider.interrupt(); } catch { /* best effort */ }
+    });
+    this.feedbackTail = trailing.catch(() => {});
+    await this.feedbackTail;
   }
 
   private enqueue(

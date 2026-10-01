@@ -184,6 +184,18 @@ export class XmovAvatarProvider {
     );
   }
 
+  /** One utterance keeps fixed coaching speech and the verified KA together. */
+  async speakFeedback(text: string, semantic: string | null, clientSpeakId: string): Promise<void> {
+    this.requireInstance();
+    const instance = this.instance;
+    if (!instance?.speak) throw new Error('Xmov speech is unavailable');
+    this.setState('speaking');
+    await instance.speak(
+      semantic ? buildXmovKaSsml(semantic, text) : renderSsml(text, null, false),
+      true, true, { client_speak_id: clientSpeakId },
+    );
+  }
+
   /**
    * Task 3：应用本轮表达计划。
    * 纯本地记录 + 事件通知（SDK 无本地表情 API；风格经 speak 的 SSML/extra 透传网关）。
