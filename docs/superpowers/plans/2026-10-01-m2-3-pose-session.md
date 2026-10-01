@@ -62,8 +62,8 @@
 - Produces: immutable defaults `{ classificationDwellMs: 500, correctHoldMs: 3000, maxSampleGapMs: 250 }`; all configured durations must be positive finite numbers.
 
 - [x] Implement owned assessment copies, validated clock/config, lifecycle, exact 500/3000 inclusive transitions, immediate hold cancellation, priority-selected events, full-issue classification identity, one-shot completion and stale-observation expiry.
-- [x] Correct requires a coherent visible assessment with finite source timestamp, finite core angles/torso, no issues and unknown/ok framing. Malformed assessments fail closed to body_not_visible rather than advancing hold.
+- [x] Correct requires a coherent visible assessment with finite source timestamp, finite core angles/torso, no issues and unknown/ok framing. In-contract numeric/semantic incoherence fails closed to body_not_visible rather than advancing hold; missing structural fields are caller contract violations and may throw before controller mutation.
 - [x] Run `npm run build` and `git diff --check`; expected successful compiler/Vite build and no whitespace errors. Record whether automated tests were requested/run, without treating compile success as timing acceptance.
 - [x] Document clock/freshness contract and M2.4 wiring: fresh inference -> assessment -> update; scheduled Widget tick expires stale state; camera stop/inference error/unmount stops or pauses session.
-- [ ] Commit Task 2 files. Request one fresh read-only final review under executing-plans; fix material findings, with automated regression tests only if requested.
-- [ ] Save final review and implementation records; keep the branch for M2.4.
+- [x] Commit Task 2 files. Request one fresh read-only final review under executing-plans; fix material findings, with automated regression tests only if requested.
+- [x] Save final review and implementation records; keep the branch for M2.4.

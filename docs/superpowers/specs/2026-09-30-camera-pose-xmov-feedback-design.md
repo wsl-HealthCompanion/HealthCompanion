@@ -353,6 +353,8 @@ Rules:
 
 The controller must be testable with injected timestamps.
 
+M2.3 implementation clarification (2026-10-01): use an injected monotonic observation clock, separate from the source video's timestamp. A valid source timestamp must advance for a sample to be new. Null-pose observations can have a null source timestamp. A configurable fresh-sample gap (default 250 ms for the 10–15 Hz inference target) breaks classification and hold continuity. Explicit tick can expire stale observations but cannot accrue hold or complete. Pause/resume cancels progress and reacquires; stop/start also resets the source watermark, and completion is terminal until an explicit new start. Live wiring belongs to M2.4. Automated timing acceptance is deferred by the user's instruction for this iteration.
+
 ## 16. PerceptionEvent
 
 PosePerceptionEventName:
@@ -376,6 +378,8 @@ PerceptionEvent:
   - holdMs?
 
 Raw 33-landmark arrays are not part of the cross-component event.
+
+M2.3 events also carry timestampMs from the injected observation clock. Copy only the listed scalar measurements, framing, issues and holdMs; omit unavailable angles and confidence rather than inventing values.
 
 This is the contract Milestone 3 will later consume.
 
