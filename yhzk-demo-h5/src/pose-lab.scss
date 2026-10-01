@@ -93,6 +93,16 @@ button {
   transform: scaleX(-1);
 }
 
+.pose-lab__camera-placeholder {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  color: #58665d;
+  text-align: center;
+}
+
 .pose-lab__overlay {
   pointer-events: none;
 }
@@ -129,6 +139,24 @@ button {
 .pose-lab__controls button:disabled {
   cursor: wait;
   opacity: .58;
+}
+
+.pose-lab__camera-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #425149;
+  font-size: 14px;
+}
+
+.pose-lab__camera-select select {
+  max-width: min(320px, 55vw);
+  border: 1px solid #dce8e0;
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
 }
 
 .pose-lab__diagnostics {

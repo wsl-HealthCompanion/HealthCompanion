@@ -56,7 +56,7 @@ export class CameraSession {
     return this.error;
   }
 
-  start(): Promise<MediaStream> {
+  start(deviceId?: string): Promise<MediaStream> {
     if (this.stream) {
       return Promise.resolve(this.stream);
     }
@@ -68,7 +68,11 @@ export class CameraSession {
     this.status = 'requesting';
     this.error = '';
 
-    const pending = this.deps.getUserMedia(CAMERA_CONSTRAINTS)
+    const constraints = deviceId
+      ? { video: { deviceId: { exact: deviceId } }, audio: false }
+      : CAMERA_CONSTRAINTS;
+
+    const pending = this.deps.getUserMedia(constraints)
       .then((stream) => {
         if (generation !== this.generation) {
           stopTracks(stream);

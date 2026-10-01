@@ -5,6 +5,11 @@ export type CameraStatus =
   | 'denied'
   | 'error';
 
+export interface CameraDeviceOption {
+  deviceId: string;
+  label: string;
+}
+
 export interface PoseLandmarkPoint {
   x: number;
   y: number;

@@ -20,6 +20,7 @@ import {
   type PoseProbeStats,
 } from '../pose/poseProbeLoop';
 import type {
+  CameraDeviceOption,
   CameraStatus,
   PoseFrame,
 } from '../pose/types';
@@ -37,6 +38,11 @@ export interface PoseLabViewProps {
   state: PoseLabViewState;
   onStartCamera: () => void;
   onStopCamera: () => void;
+  cameraDevices?: CameraDeviceOption[];
+  selectedCameraId?: string;
+  cameraLabel?: string;
+  videoDimensions?: string;
+  onSelectCamera?: (deviceId: string) => void;
   videoElement: ReactNode;
 }
 
@@ -114,11 +120,70 @@ function modelStatusText(
   }
 }
 
+function isVirtualCameraLabel(label: string): boolean {
+  return /virtual|transcreen|obs|manycam|snap camera|droidcam|vcam/i.test(label);
+}
+
+function isCameraBusyError(error: unknown): boolean {
+  if (error instanceof DOMException && error.name === 'NotReadableError') {
+    return true;
+  }
+  return /device in use|device busy/i.test(
+    error instanceof Error ? error.message : String(error),
+  );
+}
+
 function formatMetric(
   value: number | null,
   digits = 3,
 ): string {
   return value === null ? '—' : value.toFixed(digits);
+}
+
+function waitForVideoFrame(video: HTMLVideoElement): Promise<void> {
+  const hasFrame = () => video.readyState >= 2
+    && video.videoWidth > 0
+    && video.videoHeight > 0
+    && video.currentTime > 0;
+
+  if (hasFrame()) {
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve, reject) => {
+    let timeout = 0;
+
+    const cleanup = () => {
+      window.clearTimeout(timeout);
+      video.removeEventListener('loadeddata', checkFrame);
+      video.removeEventListener('resize', checkFrame);
+      video.removeEventListener('error', onError);
+    };
+
+    const finish = (error?: Error) => {
+      cleanup();
+      if (error) reject(error);
+      else resolve();
+    };
+
+    const checkFrame = () => {
+      if (hasFrame()) finish();
+    };
+
+    const onError = () => finish(new Error(
+      video.error?.message || '浏览器无法读取摄像头画面。',
+    ));
+
+    video.addEventListener('loadeddata', checkFrame);
+    video.addEventListener('resize', checkFrame);
+    video.addEventListener('error', onError);
+    timeout = window.setTimeout(() => {
+      finish(new Error(
+        '浏览器已连接摄像头，但没有收到视频帧。请在下方切换摄像头来源后重试。',
+      ));
+    }, 5000);
+    checkFrame();
+  });
 }
 
 function PoseOverlay({ frame }: { frame: PoseFrame }) {
@@ -167,6 +232,11 @@ export function PoseLabView({
   state,
   onStartCamera,
   onStopCamera,
+  cameraDevices = [],
+  selectedCameraId = '',
+  cameraLabel = '',
+  videoDimensions = '',
+  onSelectCamera,
   videoElement,
 }: PoseLabViewProps) {
   const frame = state.frame;
@@ -186,6 +256,15 @@ export function PoseLabView({
         <div className="pose-lab__camera-column">
           <div className="pose-lab__stage">
             {videoElement}
+            {state.cameraStatus !== 'active' && (
+              <div className="pose-lab__camera-placeholder" role="status">
+                {state.cameraStatus === 'error'
+                  ? state.error || '没有收到摄像头画面'
+                  : state.cameraStatus === 'requesting'
+                    ? '正在连接摄像头…'
+                    : '点击“开启摄像头”查看实时画面'}
+              </div>
+            )}
             {frame && <PoseOverlay frame={frame} />}
           </div>
 
@@ -203,6 +282,22 @@ export function PoseLabView({
                 开启摄像头
               </button>
             )}
+            {cameraDevices.length > 0 && onSelectCamera && (
+              <label className="pose-lab__camera-select">
+                摄像头来源
+                <select
+                  value={selectedCameraId}
+                  onChange={(event) => onSelectCamera(event.currentTarget.value)}
+                  disabled={state.cameraStatus === 'requesting'}
+                >
+                  {cameraDevices.map((device, index) => (
+                    <option key={device.deviceId} value={device.deviceId}>
+                      {device.label || `摄像头 ${index + 1}`}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
           </div>
         </div>
 
@@ -211,6 +306,8 @@ export function PoseLabView({
             <h2>运行状态</h2>
             <p>{cameraStatusText(state.cameraStatus)}</p>
             <p>{modelStatusText(state.modelStatus)}</p>
+            {cameraLabel && <p>设备：{cameraLabel}</p>}
+            {videoDimensions && <p>画面尺寸：{videoDimensions}</p>}
             {state.error && (
               <p className="pose-lab__error" role="alert">
                 {state.error}
@@ -316,6 +413,33 @@ export default function PoseLabPage() {
     diagnostics: EMPTY_DIAGNOSTICS,
     error: '',
   });
+  const [cameraDevices, setCameraDevices] = useState<CameraDeviceOption[]>([]);
+  const [selectedCameraId, setSelectedCameraId] = useState('');
+  const [cameraLabel, setCameraLabel] = useState('');
+  const [videoDimensions, setVideoDimensions] = useState('');
+
+  const refreshCameraDevices = async (): Promise<CameraDeviceOption[]> => {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const seen = new Set<string>();
+      const cameraInputs = devices
+        .filter((device) => device.kind === 'videoinput')
+        .filter((device) => {
+          if (!device.deviceId || seen.has(device.deviceId)) return false;
+          seen.add(device.deviceId);
+          return true;
+        })
+        .map((device, index) => ({
+          deviceId: device.deviceId,
+          label: device.label || `摄像头 ${index + 1}`,
+        }));
+      if (mountedRef.current) setCameraDevices(cameraInputs);
+      return cameraInputs;
+    } catch {
+      // Camera input selection is optional; keep the original browser error visible.
+      return [];
+    }
+  };
 
   useEffect(() => {
     mountedRef.current = true;
@@ -336,7 +460,10 @@ export default function PoseLabPage() {
     };
   }, []);
 
-  const startCamera = async () => {
+  const startCamera = async (
+    deviceId = selectedCameraId,
+    allowHardwareFallback = !deviceId,
+  ) => {
     const camera = cameraRef.current;
     if (
       camera.getStatus() === 'requesting'
@@ -354,7 +481,7 @@ export default function PoseLabPage() {
     }));
 
     try {
-      const stream = await camera.start();
+      const stream = await camera.start(deviceId || undefined);
       if (
         !mountedRef.current
         || !runGateRef.current.isCurrent(runToken)
@@ -369,8 +496,35 @@ export default function PoseLabPage() {
         return;
       }
 
+      const videoTrack = stream.getVideoTracks()[0];
+      const actualDeviceId = videoTrack?.getSettings().deviceId || deviceId;
+      const devices = await refreshCameraDevices();
+      if (
+        !mountedRef.current
+        || !runGateRef.current.isCurrent(runToken)
+      ) {
+        camera.stop();
+        return;
+      }
+      const hardwareCamera = devices.find((item) => !isVirtualCameraLabel(item.label));
+      if (
+        allowHardwareFallback
+        && isVirtualCameraLabel(videoTrack?.label || '')
+        && hardwareCamera
+      ) {
+        camera.stop();
+        setSelectedCameraId(hardwareCamera.deviceId);
+        void startCamera(hardwareCamera.deviceId, false);
+        return;
+      }
+      if (actualDeviceId) setSelectedCameraId(actualDeviceId);
+      setCameraLabel(videoTrack?.label || '摄像头名称不可用');
+
       video.srcObject = stream;
-      await video.play();
+      await Promise.all([
+        video.play(),
+        waitForVideoFrame(video),
+      ]);
 
       if (
         !mountedRef.current
@@ -379,6 +533,8 @@ export default function PoseLabPage() {
       ) {
         return;
       }
+
+      setVideoDimensions(`${video.videoWidth} × ${video.videoHeight}`);
 
       setState((current) => ({
         ...current,
@@ -467,9 +623,36 @@ export default function PoseLabPage() {
         !mountedRef.current
         || !runGateRef.current.isCurrent(runToken)
       ) return;
+      const devices = await refreshCameraDevices();
+      if (
+        !mountedRef.current
+        || !runGateRef.current.isCurrent(runToken)
+      ) return;
+      if (
+        allowHardwareFallback
+        && isCameraBusyError(error)
+      ) {
+        const hardwareCamera = devices.find((item) => !isVirtualCameraLabel(item.label));
+        if (hardwareCamera) {
+          camera.stop();
+          setSelectedCameraId(hardwareCamera.deviceId);
+          void startCamera(hardwareCamera.deviceId, false);
+          return;
+        }
+      }
+      const streamWasActive = camera.getStatus() === 'active';
+      if (streamWasActive) {
+        stopPoseLabRuntime({
+          camera,
+          loop: {
+            stop: () => loopRef.current?.stop(),
+          },
+          video: videoRef.current,
+        });
+      }
       setState((current) => ({
         ...current,
-        cameraStatus: camera.getStatus(),
+        cameraStatus: streamWasActive ? 'error' : camera.getStatus(),
         error: camera.getError()
           || (error instanceof Error ? error.message : String(error)),
       }));
@@ -497,6 +680,15 @@ export default function PoseLabPage() {
     }));
   };
 
+  const selectCamera = (deviceId: string) => {
+    setSelectedCameraId(deviceId);
+    if (cameraRef.current.getStatus() === 'requesting') return;
+    if (cameraRef.current.getStatus() === 'active') {
+      stopCamera();
+    }
+    void startCamera(deviceId);
+  };
+
   return (
     <PoseLabView
       state={state}
@@ -504,6 +696,11 @@ export default function PoseLabPage() {
         void startCamera();
       }}
       onStopCamera={stopCamera}
+      cameraDevices={cameraDevices}
+      selectedCameraId={selectedCameraId}
+      cameraLabel={cameraLabel}
+      videoDimensions={videoDimensions}
+      onSelectCamera={selectCamera}
       videoElement={(
         <video
           ref={videoRef}
