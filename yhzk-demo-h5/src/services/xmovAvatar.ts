@@ -26,6 +26,7 @@ class XmovAvatarBridge {
   private queue: Promise<void> = Promise.resolve();
   // Keep in-flight SDK calls ordered even after a generation is invalidated.
   private feedbackTail: Promise<void> = Promise.resolve();
+  private feedbackPending = 0;
 
   attach(provider: XmovAvatarProvider): () => void {
     this.generation += 1;
@@ -186,6 +187,7 @@ class XmovAvatarBridge {
   }
 
   sendPoseFeedback(text: string, actionKey: PoseFeedbackAction | undefined, signal: AbortSignal): Promise<boolean> {
+    this.feedbackPending += 1;
     const provider = this.provider;
     const generation = ++this.generation;
     this.round = null;
@@ -203,7 +205,10 @@ class XmovAvatarBridge {
       await provider.speakFeedback(text, entry?.semantic ?? null, `pose_${generation}`);
       return current(); // submitted, not evidence of audible/visible completion
     });
-    this.feedbackTail = work.then(() => {}, () => {});
+    this.feedbackTail = work.then(
+      () => { this.feedbackPending -= 1; },
+      () => { this.feedbackPending -= 1; },
+    );
     return work;
   }
 
@@ -214,12 +219,13 @@ class XmovAvatarBridge {
 
     const provider = this.provider;
     if (!provider || !this.ready) return;
+    const pendingFeedback = this.feedbackPending > 0;
     // Immediate interruption stops current playback. A trailing interruption also
     // clears an SDK submission that finishes after cancel; new feedback waits for both.
     const immediate = provider.interrupt().catch(() => {});
     const trailing = this.feedbackTail.then(async () => {
       await immediate;
-      if (this.provider !== provider) return;
+      if (!pendingFeedback || this.provider !== provider) return;
       try { await provider.interrupt(); } catch { /* best effort */ }
     });
     this.feedbackTail = trailing.catch(() => {});

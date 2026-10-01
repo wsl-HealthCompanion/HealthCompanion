@@ -38,18 +38,24 @@ interface Props {
   showDevControls?: boolean;
   subtitle?: string;
   subtitleRole?: 'user' | 'assistant';
+  onAvailabilityChange?: (ready: boolean) => void;
+  presentation?: 'default' | 'training';
 }
 
 export default function XmovAvatarPlayer({
   showDevControls = XMOV_CONFIG.showDevControls,
   subtitle,
   subtitleRole = 'assistant',
+  onAvailabilityChange,
+  presentation = 'default',
 }: Props) {
   const containerId = useMemo(
     () => `xmov-avatar-${Math.random().toString(36).slice(2, 10)}`,
     [],
   );
   const providerRef = useRef<XmovAvatarProvider | null>(null);
+  const availabilityCallback = useRef(onAvailabilityChange);
+  availabilityCallback.current = onAvailabilityChange;
   const [state, setState] = useState<XmovAvatarRuntimeState>('unconfigured');
   const [expression, setExpression] = useState<ExpressionPlan | null>(null);
   const [progress, setProgress] = useState(0);
@@ -58,15 +64,31 @@ export default function XmovAvatarPlayer({
 
   useEffect(() => {
     let mounted = true;
+    let available = false;
+    let failed = false;
+    const reportAvailability = (ready: boolean) => {
+      if (ready === available) return;
+      available = ready;
+      availabilityCallback.current?.(ready);
+    };
     const provider = new XmovAvatarProvider({
       onStateChange: (next) => {
-        if (mounted) setState(next);
+        if (!mounted) return;
+        setState(next);
+        if (next === 'error' || next === 'destroyed') {
+          xmovAvatar.markUnavailable(provider);
+          reportAvailability(false);
+        }
       },
       onDownloadProgress: (next) => {
         if (mounted) setProgress(Math.max(0, Math.min(100, Math.round(next))));
       },
       onError: (nextError) => {
-        if (mounted) setError(nextError.message);
+        if (!mounted) return;
+        failed = true;
+        xmovAvatar.markUnavailable(provider);
+        reportAvailability(false);
+        setError(nextError.message);
       },
       onExpressionChange: (plan) => {
         if (mounted) setExpression(plan);
@@ -78,7 +100,9 @@ export default function XmovAvatarPlayer({
     if (hasXmovCredentials()) {
       provider.init(containerId).then(() => {
         if (!mounted) return;
+        if (failed || provider.getState() === 'error' || provider.getState() === 'destroyed') return;
         xmovAvatar.markReady(provider);
+        reportAvailability(true);
       }).catch((nextError) => {
         xmovAvatar.markUnavailable(provider);
         if (!mounted) return;
@@ -92,8 +116,9 @@ export default function XmovAvatarPlayer({
     return () => {
       mounted = false;
       providerRef.current = null;
+      reportAvailability(false);
       detachBridge();
-      void provider.destroy();
+      void provider.destroy().catch(() => {});
     };
   }, [containerId]);
 
@@ -117,7 +142,8 @@ export default function XmovAvatarPlayer({
 
       <div className="xmov-status">
         <span className={`xmov-status-dot state-${state}`} />
-        <span>{stateLabel(state)}</span>
+        <span>{presentation === 'training' && (state === 'loading-sdk' || state === 'initializing')
+          ? '正在连接数字人' : stateLabel(state)}</span>
         {expression && expression.facialEmotion !== 'neutral' && (
           <span className="xmov-expr" title={`emotion=${expression.emotion} intent=${expression.intent}`}>
             {EXPRESSION_LABELS[expression.facialEmotion] || expression.facialEmotion}
@@ -131,10 +157,14 @@ export default function XmovAvatarPlayer({
 
       {state === 'unconfigured' && (
         <div className="xmov-setup">
+          {presentation === 'training' ? (
+            <><strong>数字人暂未配置</strong><span>可以先使用摄像头练习，数字人连接需要完成项目配置。</span></>
+          ) : (<>
           <strong>XmovAvatar Task 1 已接入，等待本地凭据</strong>
           <span>在 yhzk-demo-h5/.env.local 配置 App ID / App Secret 后刷新页面。</span>
           <code>VITE_XMOV_APP_ID=...</code>
           <code>VITE_XMOV_APP_SECRET=...</code>
+          </>)}
         </div>
       )}
 
@@ -146,7 +176,8 @@ export default function XmovAvatarPlayer({
       )}
 
       {error && state !== 'unconfigured' && (
-        <div className="xmov-error" role="alert">{error}</div>
+        <div className="xmov-error" role="alert">{presentation === 'training'
+          ? '数字人连接出现问题，请重新连接。摄像头练习可以继续。' : error}</div>
       )}
 
       {showDevControls && state !== 'unconfigured' && (

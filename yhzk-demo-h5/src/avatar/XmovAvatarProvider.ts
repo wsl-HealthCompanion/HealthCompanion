@@ -34,6 +34,7 @@ function normalizeState(raw: string): XmovAvatarRuntimeState {
 
 export class XmovAvatarProvider {
   private instance: XmovAvatarInstance | null = null;
+  private lifecycle = 0;
   private state: XmovAvatarRuntimeState = 'unconfigured';
   /** 当前轮的表达计划（Task 3，由 bridge 在 intent 到达时写入） */
   private plan: ExpressionPlan | null = null;
@@ -60,9 +61,18 @@ export class XmovAvatarProvider {
 
     if (this.instance) return;
 
+    const lifecycle = ++this.lifecycle;
+    const current = () => lifecycle === this.lifecycle;
+    let ownedInstance: XmovAvatarInstance | null = null;
+    let closed = false;
+    const releaseOwned = async () => {
+      try { await ownedInstance?.destroy?.('user'); } catch { /* preserve original error */ }
+    };
+
     try {
       this.setState('loading-sdk');
       const XmovAvatar = await loadXmovSdk(XMOV_CONFIG.sdkUrl);
+      if (!current()) return;
       this.setState('initializing');
 
       const selector = containerId.startsWith('#') ? containerId : `#${containerId}`;
@@ -74,7 +84,7 @@ export class XmovAvatarProvider {
         gatewayUrl.searchParams.set('custom_id', 'healthy-digital-human');
       }
 
-      this.instance = new XmovAvatar({
+      ownedInstance = new XmovAvatar({
         containerId: selector,
         appId: XMOV_CONFIG.appId,
         appSecret: XMOV_CONFIG.appSecret,
@@ -83,41 +93,57 @@ export class XmovAvatarProvider {
         enableDebugger: false,
         hardwareAcceleration: 'prefer-hardware',
         onStateChange: (rawState: string) => {
+          if (!current() || closed) return;
           this.setState(normalizeState(String(rawState || '')), rawState);
         },
         onVoiceStateChange: (status: string) => {
+          if (!current() || closed) return;
           const normalized = String(status || '').toLowerCase();
           if (normalized.includes('start')) this.setState('speaking', status);
           if (normalized.includes('end')) this.setState('interactive-idle', status);
           this.events.onVoiceStateChange?.(status);
         },
         onProxyWidgetEvent: (event: unknown) => {
+          if (!current() || closed) return;
           this.events.onWidgetEvent?.(event);
         },
         onWidgetEvent: (event: unknown) => {
+          if (!current() || closed) return;
           this.events.onWidgetEvent?.(event);
         },
         onMessage: (message: unknown) => {
+          if (!current() || closed) return;
           if (message instanceof Error) this.events.onError?.(message);
           else if (message) this.events.onError?.(new Error(String(message)));
         },
       });
+      this.instance = ownedInstance;
 
-      await this.instance.init({
+      await ownedInstance.init({
         onDownloadProgress: (progress: number) => {
+          if (!current() || closed) return;
           this.events.onDownloadProgress?.(Number(progress) || 0);
         },
         onClose: () => {
+          if (!current()) return;
+          closed = true;
           if (this.state !== 'destroyed') this.setState('error');
         },
       });
 
+      if (!current()) { await releaseOwned(); return; }
+      if (closed) throw new Error('数字人连接已中断');
       await this.idle();
+      if (!current()) { await releaseOwned(); return; }
+      if (closed) throw new Error('数字人连接已中断');
     } catch (error) {
+      if (!current()) { await releaseOwned(); return; }
       const normalized = error instanceof Error ? error : new Error(String(error));
       this.instance = null;
+      this.lifecycle += 1;
       this.setState('error');
       this.events.onError?.(normalized);
+      await releaseOwned();
       throw normalized;
     }
   }
@@ -216,6 +242,7 @@ export class XmovAvatarProvider {
   }
 
   async destroy(): Promise<void> {
+    const lifecycle = ++this.lifecycle;
     const instance = this.instance;
     this.instance = null;
     this.plan = null;
@@ -223,7 +250,7 @@ export class XmovAvatarProvider {
       try {
         await instance.destroy?.('user');
       } finally {
-        this.setState('destroyed');
+        if (lifecycle === this.lifecycle) this.setState('destroyed');
       }
     } else {
       this.setState('destroyed');

@@ -25,6 +25,8 @@ import type {
   PoseFrame,
 } from '../pose/types';
 import { usePoseTrainingSession } from '../pose/usePoseTrainingSession';
+import { usePoseAvatarFeedback } from '../pose/usePoseAvatarFeedback';
+import { PoseAvatarFeedbackPanel } from './PoseAvatarFeedbackPanel';
 import { PoseFeedbackWidget, type PoseFeedbackWidgetProps } from './PoseFeedbackWidget';
 
 export interface PoseLabViewState {
@@ -46,6 +48,7 @@ export interface PoseLabViewProps {
   videoDimensions?: string;
   videoAspectRatio?: number;
   training?: PoseFeedbackWidgetProps;
+  avatarPanel?: ReactNode;
   onSelectCamera?: (deviceId: string) => void;
   videoElement: ReactNode;
 }
@@ -242,6 +245,7 @@ export function PoseLabView({
   videoDimensions = '',
   videoAspectRatio,
   training,
+  avatarPanel,
   onSelectCamera,
   videoElement,
 }: PoseLabViewProps) {
@@ -317,6 +321,7 @@ export function PoseLabView({
 
         <aside className="pose-lab__diagnostics">
           {training && <PoseFeedbackWidget {...training} />}
+          {avatarPanel}
           <section className="pose-lab__panel">
             <h2>运行状态</h2>
             <p>{cameraStatusText(state.cameraStatus)}</p>
@@ -441,7 +446,8 @@ export default function PoseLabPage() {
   const [videoDimensions, setVideoDimensions] = useState('');
   const [videoAspectRatio, setVideoAspectRatio] = useState<number | undefined>();
   const trainingReady = state.cameraStatus === 'active' && state.modelStatus === 'ready';
-  const training = usePoseTrainingSession(trainingReady);
+  const avatarFeedback = usePoseAvatarFeedback();
+  const training = usePoseTrainingSession(trainingReady, avatarFeedback.observer);
 
   const refreshCameraDevices = async (): Promise<CameraDeviceOption[]> => {
     try {
@@ -800,6 +806,10 @@ export default function PoseLabPage() {
       cameraLabel={cameraLabel}
       videoDimensions={videoDimensions}
       videoAspectRatio={videoAspectRatio}
+      avatarPanel={<PoseAvatarFeedbackPanel
+        feedback={avatarFeedback.state}
+        onAvailabilityChange={avatarFeedback.onAvailabilityChange}
+      />}
       training={{
         ...training.view,
         isReady: trainingReady,
