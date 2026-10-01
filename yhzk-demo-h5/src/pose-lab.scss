@@ -59,13 +59,69 @@ button {
 
 .pose-lab__workspace {
   display: grid;
-  grid-template-columns: minmax(0, 1.55fr) minmax(320px, .85fr);
   gap: 22px;
+}
+
+.pose-lab__practice-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(320px, .75fr);
+  align-items: stretch;
+  gap: 22px;
+}
+
+.pose-lab__avatar-column,
+.pose-lab__camera-column {
+  min-width: 0;
+}
+
+.pose-lab__avatar-column {
+  display: flex;
+  align-items: stretch;
+}
+
+.pose-lab__avatar-column > * {
+  width: 100%;
+}
+
+.pose-lab__workspace > .pose-lab__diagnostics {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(300px, .8fr);
   align-items: start;
+  gap: 22px;
+}
+
+.pose-lab__workspace > .pose-lab__diagnostics > .pose-lab__probe-details {
+  grid-column: 1 / -1;
+}
+
+.pose-lab__diagnostics {
+  min-width: 0;
 }
 
 .pose-lab__camera-column {
   min-width: 0;
+}
+
+@media (max-width: 860px) {
+  .pose-lab__practice-row {
+    grid-template-columns: minmax(0, 1.15fr) minmax(270px, .85fr);
+    gap: 14px;
+  }
+
+  .pose-lab__workspace > .pose-lab__diagnostics {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  .pose-lab__workspace > .pose-lab__diagnostics > .pose-lab__probe-details {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 700px) {
+  .pose-lab__practice-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .pose-lab__stage {
@@ -293,7 +349,7 @@ summary:focus-visible {
 }
 
 .pose-avatar__stage {
-  height: 360px;
+  height: 420px;
   margin-top: 14px;
   overflow: hidden;
   border-radius: 16px;
@@ -301,7 +357,7 @@ summary:focus-visible {
 
 .pose-avatar__stage .xmov-player,
 .pose-avatar__stage .xmov-stage {
-  min-height: 360px;
+  min-height: 420px;
 }
 
 .pose-avatar__feedback {

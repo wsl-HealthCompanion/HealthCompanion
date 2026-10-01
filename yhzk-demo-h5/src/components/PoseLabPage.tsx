@@ -266,62 +266,67 @@ export function PoseLabView({
       </header>
 
       <section className="pose-lab__workspace">
-        <div className="pose-lab__camera-column">
-          <div className="pose-lab__stage" style={videoAspectRatio ? { aspectRatio: videoAspectRatio } : undefined}>
-            {videoElement}
-            {state.cameraStatus !== 'active' && (
-              <div className="pose-lab__camera-placeholder" role="status">
-                {state.cameraStatus === 'error'
-                  ? state.error || '没有收到摄像头画面'
-                  : state.cameraStatus === 'requesting'
-                    ? '正在连接摄像头…'
-                    : '点击“开启摄像头”查看实时画面'}
-              </div>
-            )}
-            {frame && (!training || training.hasFreshSample) && <PoseOverlay frame={frame} />}
-            {training && state.cameraStatus === 'active' && state.modelStatus === 'ready'
-              && !training.hasFreshSample && (
-                <div className="pose-lab__observation-notice">正在等待新的姿态画面</div>
+        <div className="pose-lab__practice-row">
+          <div className="pose-lab__camera-column">
+            <div className="pose-lab__stage" style={videoAspectRatio ? { aspectRatio: videoAspectRatio } : undefined}>
+              {videoElement}
+              {state.cameraStatus !== 'active' && (
+                <div className="pose-lab__camera-placeholder" role="status">
+                  {state.cameraStatus === 'error'
+                    ? state.error || '没有收到摄像头画面'
+                    : state.cameraStatus === 'requesting'
+                      ? '正在连接摄像头…'
+                      : '点击“开启摄像头”查看实时画面'}
+                </div>
               )}
+              {frame && (!training || training.hasFreshSample) && <PoseOverlay frame={frame} />}
+              {training && state.cameraStatus === 'active' && state.modelStatus === 'ready'
+                && !training.hasFreshSample && (
+                  <div className="pose-lab__observation-notice">正在等待新的姿态画面</div>
+                )}
+            </div>
+
+            <div className="pose-lab__controls">
+              {state.cameraStatus === 'requesting' ? (
+                <button type="button" onClick={onStopCamera}>取消连接</button>
+              ) : state.cameraStatus === 'active' ? (
+                <button type="button" onClick={onStopCamera}>
+                  关闭摄像头
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={onStartCamera}
+                >
+                  开启摄像头
+                </button>
+              )}
+              {cameraDevices.length > 0 && onSelectCamera && (
+                <label className="pose-lab__camera-select">
+                  摄像头来源
+                  <select
+                    value={selectedCameraId}
+                    onChange={(event) => onSelectCamera(event.currentTarget.value)}
+                    disabled={state.cameraStatus === 'requesting'}
+                  >
+                    {cameraDevices.map((device, index) => (
+                      <option key={device.deviceId} value={device.deviceId}>
+                        {device.label || `摄像头 ${index + 1}`}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+            </div>
           </div>
 
-          <div className="pose-lab__controls">
-            {state.cameraStatus === 'requesting' ? (
-              <button type="button" onClick={onStopCamera}>取消连接</button>
-            ) : state.cameraStatus === 'active' ? (
-              <button type="button" onClick={onStopCamera}>
-                关闭摄像头
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={onStartCamera}
-              >
-                开启摄像头
-              </button>
-            )}
-            {cameraDevices.length > 0 && onSelectCamera && (
-              <label className="pose-lab__camera-select">
-                摄像头来源
-                <select
-                  value={selectedCameraId}
-                  onChange={(event) => onSelectCamera(event.currentTarget.value)}
-                  disabled={state.cameraStatus === 'requesting'}
-                >
-                  {cameraDevices.map((device, index) => (
-                    <option key={device.deviceId} value={device.deviceId}>
-                      {device.label || `摄像头 ${index + 1}`}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-          </div>
+          {avatarPanel && (
+            <div className="pose-lab__avatar-column">{avatarPanel}</div>
+          )}
         </div>
 
         <aside className="pose-lab__diagnostics">
           {training && <PoseFeedbackWidget {...training} />}
-          {avatarPanel}
           <section className="pose-lab__panel">
             <h2>运行状态</h2>
             <p>{cameraStatusText(state.cameraStatus)}</p>
