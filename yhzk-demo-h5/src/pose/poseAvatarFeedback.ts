@@ -100,12 +100,14 @@ export class PoseAvatarFeedbackController {
   }
 
   private deliver(feedback: PoseAvatarFeedback): void {
-    this.delivery?.abort();
+    const previous = this.delivery;
+    previous?.abort();
+    // Abort cancels our dispatch guards; interrupt also stops SDK playback now.
+    // send() joins the trailing cleanup barrier before submitting the replacement.
+    if (previous) void this.port.interrupt().catch(() => {});
     this.lastKey = feedback.key;
     if (!this.port.isReady()) {
-      const previous = this.delivery;
       this.delivery = null;
-      if (previous) void this.port.interrupt().catch(() => {});
       this.onChange({ status: 'unavailable', text: '', error: '' });
       return;
     }

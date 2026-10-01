@@ -14,6 +14,11 @@ interface RoundContext {
   plan: ExpressionPlan | null;
 }
 
+interface FeedbackLane {
+  tail: Promise<void>;
+  pending: number;
+}
+
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -25,13 +30,13 @@ class XmovAvatarBridge {
   private round: RoundContext | null = null;
   private queue: Promise<void> = Promise.resolve();
   // Keep in-flight SDK calls ordered even after a generation is invalidated.
-  private feedbackTail: Promise<void> = Promise.resolve();
-  private feedbackPending = 0;
+  private feedbackLane: FeedbackLane = { tail: Promise.resolve(), pending: 0 };
 
   attach(provider: XmovAvatarProvider): () => void {
     this.generation += 1;
     this.round = null;
     this.queue = Promise.resolve();
+    this.feedbackLane = { tail: Promise.resolve(), pending: 0 };
     this.provider = provider;
     this.ready = false;
     return () => {
@@ -41,6 +46,7 @@ class XmovAvatarBridge {
       this.round = null;
       this.generation += 1;
       this.queue = Promise.resolve();
+      this.feedbackLane = { tail: Promise.resolve(), pending: 0 };
     };
   }
 
@@ -187,14 +193,15 @@ class XmovAvatarBridge {
   }
 
   sendPoseFeedback(text: string, actionKey: PoseFeedbackAction | undefined, signal: AbortSignal): Promise<boolean> {
-    this.feedbackPending += 1;
+    const lane = this.feedbackLane;
+    lane.pending += 1;
     const provider = this.provider;
     const generation = ++this.generation;
     this.round = null;
     this.queue = Promise.resolve();
     const current = () => !signal.aborted && generation === this.generation
       && provider === this.provider && Boolean(provider) && this.ready;
-    const work = this.feedbackTail.then(async () => {
+    const work = lane.tail.then(async () => {
       if (!current() || !provider) return false;
       const entry = actionKey ? resolveHealthAction(actionKey) : null;
       if (actionKey && (!entry?.verified || !entry.semantic)) {
@@ -205,9 +212,9 @@ class XmovAvatarBridge {
       await provider.speakFeedback(text, entry?.semantic ?? null, `pose_${generation}`);
       return current(); // submitted, not evidence of audible/visible completion
     });
-    this.feedbackTail = work.then(
-      () => { this.feedbackPending -= 1; },
-      () => { this.feedbackPending -= 1; },
+    lane.tail = work.then(
+      () => { lane.pending -= 1; },
+      () => { lane.pending -= 1; },
     );
     return work;
   }
@@ -218,18 +225,20 @@ class XmovAvatarBridge {
     this.queue = Promise.resolve();
 
     const provider = this.provider;
-    if (!provider || !this.ready) return;
-    const pendingFeedback = this.feedbackPending > 0;
+    // Readiness blocks new submissions, never cleanup of a captured SDK instance.
+    if (!provider) return;
+    const lane = this.feedbackLane;
+    const pendingFeedback = lane.pending > 0;
     // Immediate interruption stops current playback. A trailing interruption also
     // clears an SDK submission that finishes after cancel; new feedback waits for both.
     const immediate = provider.interrupt().catch(() => {});
-    const trailing = this.feedbackTail.then(async () => {
+    const trailing = lane.tail.then(async () => {
       await immediate;
       if (!pendingFeedback || this.provider !== provider) return;
       try { await provider.interrupt(); } catch { /* best effort */ }
     });
-    this.feedbackTail = trailing.catch(() => {});
-    await this.feedbackTail;
+    lane.tail = trailing.catch(() => {});
+    await lane.tail;
   }
 
   private enqueue(

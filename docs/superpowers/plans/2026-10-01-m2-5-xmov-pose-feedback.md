@@ -40,9 +40,9 @@
 - Produces bridge `sendPoseFeedback(text, actionKey, signal):Promise<boolean>`; false means canceled, errors remain observable. Existing chat methods retain their API.
 - Extends buildXmovKaSsml with optional escaped speech text; provider `speakFeedback(text,semantic|null,clientSpeakId)` bypasses chat expression state.
 
-- [ ] Implement priority copy, primary-key deduplication, active-session gating and cancellation tokens; isolate rejected SDK delivery from pose state.
-- [ ] Add serialized generation/provider/abort guards around feedback dispatch and interruption; verified registry lookup lives in bridge. Use one speech/KA utterance.
-- [ ] Compile frontend (exit0); inspect diff; commit files. Tests deferred.
+- [x] Implement priority copy, primary-key deduplication, active-session gating and cancellation tokens; isolate rejected SDK delivery from pose state.
+- [x] Add serialized generation/provider/abort guards around feedback dispatch and interruption; verified registry lookup lives in bridge. Use one speech/KA utterance.
+- [x] Compile frontend (exit0); inspect diff; commit files. Tests deferred.
 
 ### Task 2: Live lifecycle and digital-human panel
 
@@ -54,8 +54,8 @@
 - Player optional onAvailabilityChange callback and training presentation; existing default player users remain compatible.
 - Panel connects/disconnects/reconnects player, shows short speech and isolated unavailable/failure state; no automatic replay when ready.
 
-- [ ] Integrate event observer and immediate cancellation, including expiry and completed-session camera teardown.
-- [ ] Expose player availability, protect initialization against teardown and show nontechnical training copy. Add explicit connection/retry controls and responsive panel.
-- [ ] Build production and git diff --check (exit0); no tests or camera/SDK execution. Commit implementation.
-- [ ] Request one fresh static review; fix material findings in one pass using compiler/build, without adding/running tests.
-- [ ] Record implementation, review decisions and M2.6 pending acceptance in docs/specs and docs/README.md; commit and keep current branch.
+- [x] Integrate event observer and immediate cancellation, including expiry and completed-session camera teardown.
+- [x] Expose player availability, protect initialization against teardown and show nontechnical training copy. Add explicit connection/retry controls and responsive panel.
+- [x] Build production and git diff --check (exit0); no tests or camera/SDK execution. Commit implementation.
+- [x] Request one fresh static review; fix material findings in one pass using compiler/build, without adding/running tests.
+- [x] Record implementation, review decisions and M2.6 pending acceptance in docs/specs and docs/README.md; commit and keep current branch.
