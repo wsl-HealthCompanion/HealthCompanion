@@ -532,6 +532,8 @@ Drive fixed speech and M1 Action Registry keys from stable pose events.
 
 No LangGraph.
 
+Status (2026-10-01): user accepted this stage after observing the digital human and a response following an exercise set. Camera/avatar simultaneous visibility and roughly10-second completion-response delay remain for M2.6 refinement. This is not full end-to-end acceptance; see `2026-10-01-m2-5-implementation-record.md`.
+
 ### M2.6 — End-to-End Verification
 
 Observed sequence:
