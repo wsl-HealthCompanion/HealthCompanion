@@ -121,9 +121,9 @@ export class PoseProbeLoop {
     }
 
     try {
-      const rawTimestampMs = videoTime * 1000;
+      const rawTimestampMs = Math.floor(videoTime * 1000);
       const timestampMs = Number.isFinite(this.lastMediaTimestampMs)
-        ? Math.max(rawTimestampMs, this.lastMediaTimestampMs + 0.001)
+        ? Math.max(rawTimestampMs, Math.floor(this.lastMediaTimestampMs) + 1)
         : rawTimestampMs;
       const frame = this.adapter.detect(this.video, timestampMs);
 

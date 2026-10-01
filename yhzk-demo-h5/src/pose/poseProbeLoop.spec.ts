@@ -211,7 +211,7 @@ describe('PoseProbeLoop', () => {
     expect(h.pendingCount()).toBe(0);
   });
 
-  it('keeps MediaPipe timestamps monotonic across camera restarts', () => {
+  it('advances MediaPipe timestamps by a full millisecond after camera restart', () => {
     const h = harness();
     const detect = vi.fn().mockReturnValue(frame());
     const loop = new PoseProbeLoop({ detect }, h.deps);
@@ -230,7 +230,7 @@ describe('PoseProbeLoop', () => {
     const secondTimestamp = detect.mock.calls[1][1] as number;
 
     expect(firstTimestamp).toBe(2000);
-    expect(secondTimestamp).toBeGreaterThan(firstTimestamp);
+    expect(secondTimestamp).toBe(2001);
   });
 
   it('cancels the pending frame and prevents later detection on stop', () => {
