@@ -73,13 +73,11 @@ export function usePoseTrainingSession(enabled: boolean) {
     publish(update.snapshot);
   }, [controller, publish]);
 
-  const canBegin = useCallback((nowMs: number) => enabledRef.current && !document.hidden
-    && lastSampleAtRef.current !== null
-    && nowMs - lastSampleAtRef.current <= DEFAULT_POSE_SESSION_CONFIG.maxSampleGapMs, []);
+  const canBegin = useCallback(() => enabledRef.current && !document.hidden, []);
 
   const start = useCallback(() => {
     const nowMs = performance.now();
-    if (!canBegin(nowMs)) return;
+    if (!canBegin()) return;
     eventRef.current = null;
     // Do not replay the current React assessment: the next inference starts the dwell.
     publish(controller.start(nowMs));
@@ -92,15 +90,15 @@ export function usePoseTrainingSession(enabled: boolean) {
 
   const resume = useCallback(() => {
     const nowMs = performance.now();
-    if (!canBegin(nowMs)) return;
+    if (!canBegin()) return;
     eventRef.current = null;
     publish(controller.resume(nowMs));
   }, [canBegin, controller, publish]);
 
   const stopTraining = useCallback(() => {
-    eventRef.current = null;
+    dropLiveObservation();
     publish(controller.stop());
-  }, [controller, publish]);
+  }, [controller, dropLiveObservation, publish]);
 
   useEffect(() => {
     mountedRef.current = true;

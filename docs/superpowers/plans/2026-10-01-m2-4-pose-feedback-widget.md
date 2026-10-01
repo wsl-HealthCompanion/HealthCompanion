@@ -14,11 +14,11 @@
 
 - Show anatomical left/right arm angles, target80°–105°, torso lean, all current issues, framing and hold0.0/3.0seconds.
 - Use existing rule/session defaults,500ms dwell and3000ms hold. No duplicate timing or posture rules in UI.
-- Camera activation remains explicit. Training starts separately after a fresh inference result; absent body is a valid fresh negative observation.
-- Pause/resume cancels hold; stop training preserves live preview/inference; stop/switch camera resets training and observation state.
+- Camera activation remains explicit. Training starts separately after camera/model readiness and waits for new inference results; absent body is a valid fresh negative observation.
+- Pause/resume cancels hold; stop training cancels pose scheduling and preserves camera preview per design section19. Explicit start restarts sampling; stop/switch camera resets training and observation state.
 - Clock is performance.now() at sample consumption; feed the controller each new inference exactly once. Widget timer only calls tick to expire samples, never adds hold time.
 -250ms observation expiry also clears live measurements and stale overlay; completion remains terminal but live angles may continue updating.
-- Inference errors pause training and clear observations. Hidden page pauses training; explicit resume is required. Teardown stops session/scheduler/inference/tracks/model.
+- Inference errors pause training, clear observations and discard/close the failed adapter/loop; the next camera start recreates them. Hidden page pauses training; explicit resume is required. Teardown stops session/scheduler/inference/tracks/model.
 - Events contain structured measurements only; retain only the latest event locally for future M2.5 integration. No speech, Xmov, LLM or network additions.
 - User chose development without automated testing. Do not add/modify/run tests; use compiler/build and fresh static review. Existing M2.1-only test expectations will need separate acceptance work if the expanded view changes them.
 - Continue current feature branch, keep local commits, no merge/push.
@@ -60,9 +60,9 @@
 - Page optional training view prop maintains the standalone camera-view caller contract; actual PoseLabPage always supplies widget data/handlers.
 
 - [x] Implement stable callback/ref ownership, one update per fresh sample, a50ms expiry-only interval when camera/model is ready, explicit lifecycle controls and independent live assessment after completion.
-- [x] Pause on document hidden; clear live measurements on gaps/errors; cancel all scheduling and reset controller on unmount. Enable start/resume only with ready camera/model, a fresh sample and visible page.
+- [x] Pause on document hidden; clear live measurements on gaps/errors; cancel all scheduling and reset controller on unmount. Enable start/resume with ready camera/model and visible page; only new samples can establish stability or advance hold.
 - [x] Integrate widget and loop callbacks. Reset on camera stop/switch/new startup, pause on inference error, handle ended video tracks with detachable listeners and camera cleanup. Keep readiness/error state truthful.
 - [x] Update page title/instructions; preserve source selector, FPS/calibration and landmark diagnostics; hide stale overlay.
 - [x] Run npm run build and git diff --check; expected exit0. Do not run automated tests or exercise webcam behavior.
 - [x] Document user flow, lifecycle, events, remaining M2.5/M2.6 work and unexecuted acceptance; commit implementation.
-- [ ] Request one fresh read-only static review; fix material findings without adding/running tests. Save review and retain feature branch.
+- [x] Request one fresh read-only static review; fix material findings without adding/running tests. Save review and retain feature branch.

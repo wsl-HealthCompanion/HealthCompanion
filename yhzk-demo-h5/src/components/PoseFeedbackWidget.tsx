@@ -44,9 +44,9 @@ function guidance(props: PoseFeedbackWidgetProps): string {
   if (!isReady) return unavailableMessage || '请先开启摄像头，等待姿态识别就绪。';
   if (snapshot.status === 'completed') return '这一组完成了！可以放下双臂，或点击“再做一次”。';
   if (snapshot.status === 'paused') return '训练已暂停，保持计时已清零。点击“继续训练”重新开始保持。';
+  if (snapshot.status === 'idle') return '将双臂抬至肩部高度，准备好后点击“开始训练”。';
   if (!hasFreshSample || !assessment) return '正在等待新的姿态画面，保持计时已清零。';
   if (snapshot.status === 'holding') return '姿势正确，保持双臂和身体稳定。';
-  if (snapshot.status === 'idle') return '将双臂抬至肩部高度，准备好后点击“开始训练”。';
   if (assessment.correct) return '姿势已到位，正在确认稳定，请保持。';
   return ISSUE_TEXT[assessment.issues[0]] || '请根据下方提示调整姿势。';
 }
@@ -56,7 +56,7 @@ export function PoseFeedbackWidget(props: PoseFeedbackWidgetProps) {
   const assessment = hasFreshSample ? props.assessment : null;
   const measurement = assessment?.measurement;
   const active = ['acquiring', 'coaching', 'holding'].includes(snapshot.status);
-  const canStart = isReady && hasFreshSample;
+  const canStart = isReady;
   const progress = Math.max(0, Math.min(snapshot.holdMs, snapshot.holdTargetMs));
   const elapsed = (Math.floor(progress / 100) / 10).toFixed(1);
   const target = (snapshot.holdTargetMs / 1000).toFixed(1);
@@ -96,13 +96,14 @@ export function PoseFeedbackWidget(props: PoseFeedbackWidgetProps) {
           const arm = measurement?.[side];
           const available = arm?.visible === true && arm.angleDeg !== null && Number.isFinite(arm.angleDeg);
           const needsAdjustment = assessment?.issues.some((issue) => issue.startsWith(`${side}_arm_`));
-          const armState = !available || !measurement?.bodyVisible ? 'unknown'
+          const armState = snapshot.status === 'completed' ? 'finished'
+            : !available || !measurement?.bodyVisible ? 'unknown'
             : needsAdjustment ? 'adjust' : 'ok';
           return (
             <div className={`pose-feedback__angle pose-feedback__angle--${armState}`} key={side}>
               <span>{side === 'left' ? '左臂角度' : '右臂角度'}</span>
               <strong>{available ? angleText(arm?.angleDeg) : '—'}</strong>
-              <small>{armState === 'ok' ? '已到目标范围' : armState === 'adjust' ? '需要调整' : '等待有效关键点'}</small>
+              <small>{armState === 'finished' ? '实时测量' : armState === 'ok' ? '已到目标范围' : armState === 'adjust' ? '需要调整' : '等待有效关键点'}</small>
             </div>
           );
         })}
@@ -124,7 +125,7 @@ export function PoseFeedbackWidget(props: PoseFeedbackWidgetProps) {
       )}
       {assessment?.correct && snapshot.status === 'idle' && <p>当前姿势已在目标范围内。</p>}
 
-      <p className="pose-feedback__note">左右以你本人为准。结束训练后可继续查看摄像头画面。</p>
+      <p className="pose-feedback__note">左右以你本人为准。结束训练后保留摄像头预览。</p>
     </section>
   );
 }

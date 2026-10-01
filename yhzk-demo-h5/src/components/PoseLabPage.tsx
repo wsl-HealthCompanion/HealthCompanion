@@ -425,6 +425,7 @@ export default function PoseLabPage() {
   const runGateRef = useRef(new PoseLabRunGate());
   const mountedRef = useRef(true);
   const detachTrackEndedRef = useRef<(() => void) | null>(null);
+  const restartInferenceRef = useRef<(() => boolean) | null>(null);
 
   const [state, setState] = useState<PoseLabViewState>({
     cameraStatus: 'idle',
@@ -473,6 +474,7 @@ export default function PoseLabPage() {
       runGateRef.current.invalidate();
       detachTrackEndedRef.current?.();
       detachTrackEndedRef.current = null;
+      restartInferenceRef.current = null;
       disposePoseLabRuntime({
         camera: cameraRef.current,
         loop: {
@@ -500,6 +502,7 @@ export default function PoseLabPage() {
 
     const runToken = runGateRef.current.begin();
     training.clearObservation();
+    restartInferenceRef.current = null;
     detachTrackEndedRef.current?.();
     detachTrackEndedRef.current = null;
     setVideoDimensions('');
@@ -640,7 +643,10 @@ export default function PoseLabPage() {
         error: '',
       }));
 
-      loop.start(
+      const startInference = () => {
+        if (!mountedRef.current || !runGateRef.current.isCurrent(runToken)
+          || camera.getStatus() !== 'active' || adapterRef.current !== adapter) return false;
+        loop.start(
         video,
         (sample) => {
           if (
@@ -661,6 +667,16 @@ export default function PoseLabPage() {
             || !runGateRef.current.isCurrent(runToken)
           ) return;
           training.suspendObservation();
+          loop.stop();
+          loopRef.current = null;
+          restartInferenceRef.current = null;
+          const failedAdapter = adapterRef.current;
+          adapterRef.current = null;
+          try {
+            failedAdapter?.close();
+          } catch {
+            // Keep the inference failure visible even if the failed runtime cannot close cleanly.
+          }
           setState((current) => ({
             ...current,
             modelStatus: 'error',
@@ -670,7 +686,11 @@ export default function PoseLabPage() {
             error: error.message,
           }));
         },
-      );
+        );
+        return true;
+      };
+      restartInferenceRef.current = startInference;
+      startInference();
     } catch (error) {
       if (
         !mountedRef.current
@@ -695,6 +715,7 @@ export default function PoseLabPage() {
       }
       const streamWasActive = camera.getStatus() === 'active';
       training.clearObservation();
+      restartInferenceRef.current = null;
       detachTrackEndedRef.current?.();
       detachTrackEndedRef.current = null;
       if (streamWasActive) {
@@ -721,6 +742,7 @@ export default function PoseLabPage() {
   const stopCamera = () => {
     runGateRef.current.invalidate();
     training.clearObservation();
+    restartInferenceRef.current = null;
     detachTrackEndedRef.current?.();
     detachTrackEndedRef.current = null;
     stopPoseLabRuntime({
@@ -753,6 +775,19 @@ export default function PoseLabPage() {
     void startCamera(deviceId);
   };
 
+  const startTraining = () => {
+    if (!trainingReady || document.hidden || !restartInferenceRef.current?.()) return;
+    training.start();
+  };
+
+  const stopTraining = () => {
+    loopRef.current?.stop();
+    training.stopTraining();
+    setState((current) => ({
+      ...current, frame: null, stats: EMPTY_STATS, diagnostics: EMPTY_DIAGNOSTICS,
+    }));
+  };
+
   return (
     <PoseLabView
       state={state}
@@ -773,10 +808,10 @@ export default function PoseLabPage() {
           : state.modelStatus === 'error'
             ? '姿态识别已暂停，请关闭后重新开启摄像头。'
             : '正在准备姿态识别，请稍候。',
-        onStart: training.start,
+        onStart: startTraining,
         onPause: training.pause,
         onResume: training.resume,
-        onStop: training.stopTraining,
+        onStop: stopTraining,
       }}
       onSelectCamera={selectCamera}
       videoElement={(
