@@ -34,6 +34,7 @@
 
 ## 文档导航
 
+- [四人协作上手与任务书](./team-work/README.md)：四个岗位的独立新电脑启动、任务和交付指南。
 - [当前里程碑状态与后续路线](./XmovAvatar三个关键里程碑实施计划.md)：当前状态、阻塞项和下一步。
 - [M2 技术设计](./superpowers/specs/2026-09-30-camera-pose-xmov-feedback-design.md)：M2 的范围、接口与技术边界。
 - [M1 最终验收](./superpowers/specs/2026-09-30-xmov-m1-6-final-verification.md)：Action Lab 与已验证动作边界。
