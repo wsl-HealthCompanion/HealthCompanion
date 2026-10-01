@@ -536,7 +536,7 @@ Status (2026-10-01): user accepted this stage after observing the digital human 
 
 ### M2.6 — End-to-End Verification
 
-Status (2026-10-01): layout and event→SDK-call timing are implemented. The JS SDK voice-start callback has no request ID, so response-onset timing is left for human observation rather than attributed to a delivery. Human camera/SDK and 30-second performance acceptance remains pending; see `2026-10-01-m2-6-implementation-record.md`.
+Status (2026-10-01): layout and event→SDK-call timing are implemented. The JS SDK voice-start callback has no request ID, so response-onset timing is left for human observation rather than attributed to a delivery. User reports the latest reply felt a little faster than the previous run; this is qualitative, not a measured duration. Full layout, camera/SDK and 30-second performance acceptance remains pending; see `2026-10-01-m2-6-implementation-record.md`.
 
 Observed sequence:
 start
