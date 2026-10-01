@@ -109,6 +109,25 @@ describe('PoseLandmarkerAdapter', () => {
     expect(adapter.detect({} as HTMLVideoElement, 500)).toBeNull();
   });
 
+  it('copies source image size for aspect-correct 2D geometry', async () => {
+    detectForVideo.mockReturnValue({ landmarks: [pose()], worldLandmarks: [] });
+    const adapter = await PoseLandmarkerAdapter.create();
+    const video = { videoWidth: 1280, videoHeight: 720 } as HTMLVideoElement;
+    const frame = adapter.detect(video, 500);
+    expect(frame?.imageSize).toEqual({ width: 1280, height: 720 });
+    Object.assign(video, { videoWidth: 640, videoHeight: 480 });
+    expect(frame?.imageSize).toEqual({ width: 1280, height: 720 });
+  });
+
+  it.each([
+    {}, { videoWidth: 0, videoHeight: 0 },
+    { videoWidth: NaN, videoHeight: 480 }, { videoWidth: 640, videoHeight: -1 },
+  ])('omits unavailable video dimensions %j', async (video) => {
+    detectForVideo.mockReturnValue({ landmarks: [pose()], worldLandmarks: [] });
+    const adapter = await PoseLandmarkerAdapter.create();
+    expect(adapter.detect(video as HTMLVideoElement, 500)).not.toHaveProperty('imageSize');
+  });
+
   it('rejects malformed pose landmark counts diagnostically', async () => {
     detectForVideo.mockReturnValue({
       landmarks: [pose(32)],

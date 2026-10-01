@@ -95,6 +95,12 @@ export class PoseLandmarkerAdapter {
       inferenceMs: finishedAt - startedAt,
     };
 
+    const width = video.videoWidth;
+    const height = video.videoHeight;
+    if (Number.isFinite(width) && width > 0 && Number.isFinite(height) && height > 0) {
+      frame.imageSize = { width, height };
+    }
+
     const worldPose = result.worldLandmarks?.[0];
     if (worldPose) {
       frame.worldLandmarks = normalizePose(worldPose, 'World pose');

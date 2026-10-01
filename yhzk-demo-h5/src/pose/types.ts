@@ -21,5 +21,6 @@ export interface PoseFrame {
   timestampMs: number;
   landmarks: PoseLandmarkPoint[];
   worldLandmarks?: PoseLandmarkPoint[];
+  imageSize?: { width: number; height: number };
   inferenceMs: number;
 }
