@@ -22,6 +22,39 @@ export interface XmovAvatarProviderEvents {
   onExpressionChange?: (plan: ExpressionPlan) => void;
 }
 
+/**
+ * SDK 有时会 reject 非 Error 的对象（如 {code, message} / 事件对象），
+ * 直接 String() 会得到无意义的 "[object Object]"，这里尽量挖出可读信息。
+ */
+function describeUnknownError(error: unknown): string {
+  if (error == null) return '未知错误';
+  if (typeof error === 'string') return error;
+  if (typeof error === 'number' || typeof error === 'boolean') return String(error);
+
+  const record = error as Record<string, unknown>;
+  for (const key of ['message', 'msg', 'error', 'detail', 'reason'] as const) {
+    const value = record[key];
+    if (typeof value === 'string' && value) return value;
+  }
+
+  try {
+    const own = Object.getOwnPropertyNames(error as object)
+      .filter((key) => key !== 'stack')
+      .map((key) => {
+        const value = (error as Record<string, unknown>)[key];
+        const rendered = value !== null && typeof value === 'object'
+          ? JSON.stringify(value)
+          : String(value);
+        return `${key}=${rendered}`;
+      });
+    if (own.length) return own.join(', ');
+    const json = JSON.stringify(error);
+    if (json && json !== '{}') return json;
+  } catch { /* 循环引用等，忽略 */ }
+
+  return Object.prototype.toString.call(error);
+}
+
 function normalizeState(raw: string): XmovAvatarRuntimeState {
   const value = raw.toLowerCase().replace(/_/g, '-');
   if (value.includes('listen')) return 'listening';
@@ -118,7 +151,7 @@ export class XmovAvatarProvider {
         onMessage: (message: unknown) => {
           if (!current() || closed) return;
           if (message instanceof Error) this.events.onError?.(message);
-          else if (message) this.events.onError?.(new Error(String(message)));
+          else if (message) this.events.onError?.(new Error(describeUnknownError(message)));
         },
       });
       this.instance = ownedInstance;
@@ -142,7 +175,7 @@ export class XmovAvatarProvider {
       if (closed) throw new Error('数字人连接已中断');
     } catch (error) {
       if (!current()) { await releaseOwned(); return; }
-      const normalized = error instanceof Error ? error : new Error(String(error));
+      const normalized = error instanceof Error ? error : new Error(describeUnknownError(error));
       this.instance = null;
       this.lifecycle += 1;
       this.setState('error');

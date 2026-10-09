@@ -1,0 +1,1022 @@
+/* 康伴智生 · 主界面
+   布局：中央数字人舞台 + 左上摄像头 + 右上快捷提问 + 左下可折叠对话 + 底部输入区
+   风格：浅色毛玻璃浮层，背景为写实场景图 */
+
+/* ── 字号缩放体系 ─────────────────────────────────────────
+   本文件所有字号写成 calc(设计值 * var(--kb-scale))，而不是直接写死 px。
+   原因：设计稿给的是绝对 px 值（精确还原），但那样 A⁻/A⁺ 就调不动字号。
+   折中做法：保留设计值作为基准，再乘以一个由 JS 注入到 <html> 的比例变量。
+   --kb-scale 的取值 = 用户字号 / 16（即 100% 时保持设计稿原样）。
+   兜底值 1：JS 还没执行时按 1 渲染，不会抖动。
+   注意：只缩放 font-size，不缩放尺寸/间距 —— 否则放大字号会把浮层撑爆。 */
+:root { --kb-scale: 1; }
+
+/* ── 根容器 & 背景 ─────────────────────────────────────── */
+.kb-app {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  /* 兜底：背景图没加载出来时退回原来的渐变，不至于白屏 */
+  background:
+    radial-gradient(88% 66% at 50% 36%, #ffffff 0%, #f4fbf7 38%, #e7f4ec 78%, #dff0e6 100%),
+    #e7f4ec;
+}
+
+/* 背景图单独放在伪元素上，而不是直接写在 .kb-app 的 background 里。
+   原因：backdrop-filter（毛玻璃）只对「位于元素背后」的内容生效，
+   若背景就是元素自己的 background，卡片上的毛玻璃会失去可模糊的对象。 */
+.kb-app::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: url('/background/life-center.png') center / cover no-repeat;
+}
+
+/* 白纱：压住写实场景的细节，保证浮层卡片与深色文字的可读性。
+   画面偏暗或文字发虚时，调高这里两个 alpha 值。 */
+.kb-app::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .30) 0%, rgba(255, 255, 255, .16) 45%, rgba(255, 255, 255, .40) 100%),
+    radial-gradient(120% 88% at 50% 46%, rgba(255, 255, 255, .34) 0%, rgba(255, 255, 255, 0) 62%);
+}
+
+/* 共用毛玻璃卡面（半透明 + 模糊 + 细边） */
+.kb-glass {
+  background: rgba(255, 255, 255, .58);
+  backdrop-filter: blur(18px) saturate(1.25);
+  -webkit-backdrop-filter: blur(18px) saturate(1.25);
+  border: 1px solid rgba(255, 255, 255, .72);
+  box-shadow: 0 16px 40px rgba(40, 88, 62, .14);
+}
+
+/* ── 顶栏：只留右侧一个折叠菜单入口 ─────────────────────── */
+.kb-header {
+  flex-shrink: 0;
+  position: relative;
+  /* 必须高于 .kb-stage（后者无 z-index，会按 DOM 顺序后绘制）。
+     菜单面板要从顶栏往下溢出盖住右侧浮层，所以顶栏层级要给足。 */
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 12px 20px 0;
+  min-height: 52px;
+}
+
+.kb-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  margin-right: auto;
+}
+
+/* 预览模式角标：仅当 VITE_DEV_SKIP_LOGIN=true 时出现 */
+.kb-preview-chip {
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: .66rem;
+  font-weight: 600;
+  letter-spacing: .3px;
+  color: #b26a00;
+  background: rgba(255, 255, 255, .62);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 167, 0, .45);
+  white-space: nowrap;
+}
+
+.kb-menu-wrap { position: relative; flex-shrink: 0; z-index: 53; }
+
+.kb-menu-btn {
+  width: 38px;
+  height: 38px;
+  padding: 0 0 6px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, .72);
+  background: rgba(255, 255, 255, .58);
+  backdrop-filter: blur(18px) saturate(1.25);
+  -webkit-backdrop-filter: blur(18px) saturate(1.25);
+  color: #2b3b32;
+  font-family: inherit;
+  font-size: calc(20px * var(--kb-scale));
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 10px 26px rgba(40, 88, 62, .14);
+  transition: background .16s, transform .16s;
+}
+.kb-menu-btn:hover { background: rgba(255, 255, 255, .82); }
+.kb-menu-btn.open { background: #fff; transform: rotate(90deg); }
+
+.kb-menu-mask { position: fixed; inset: 0; z-index: 51; }
+
+.kb-menu-panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 52;
+  /* 面板宽度跟随字号，否则放大后「我的健康档案」会被挤断行 */
+  min-width: calc(216px * min(var(--kb-scale), 1.3));
+  padding: 8px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, .94);
+  backdrop-filter: blur(20px) saturate(1.3);
+  -webkit-backdrop-filter: blur(20px) saturate(1.3);
+  border: 1px solid rgba(255, 255, 255, .8);
+  box-shadow: 0 24px 56px rgba(24, 60, 40, .22);
+  animation: kb-menu-in .16s ease-out;
+}
+@keyframes kb-menu-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.kb-menu-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px 8px;
+}
+.kb-menu-label { flex: 1; font-size: calc(12.5px * var(--kb-scale)); color: #6f8378; }
+/* 当前缩放百分比，让用户知道调到哪一档了 */
+.kb-menu-scale {
+  min-width: 36px;
+  margin-right: 2px;
+  font-size: calc(11.5px * var(--kb-scale));
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #07854a;
+  text-align: right;
+}
+.kb-menu-font {
+  width: 32px; height: 30px;
+  border-radius: 9px;
+  border: 1px solid rgba(19, 46, 32, .08);
+  background: #fff;
+  color: #2b3b32;
+  font-family: inherit;
+  font-size: calc(13px * var(--kb-scale));
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .16s, opacity .16s;
+}
+.kb-menu-font:hover:not(:disabled) { background: #f2fbf5; }
+.kb-menu-font:disabled { opacity: .38; cursor: not-allowed; }
+
+.kb-menu-sep { height: 1px; margin: 4px 6px; background: rgba(19, 46, 32, .08); }
+
+.kb-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 9px 10px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: #2c3b33;
+  font-family: inherit;
+  font-size: calc(13.5px * var(--kb-scale));
+  text-align: left;
+  cursor: pointer;
+  transition: background .14s;
+}
+.kb-menu-item:hover { background: #f2fbf5; }
+.kb-menu-item.active { background: #e9f9f0; color: #07854a; font-weight: 600; }
+.kb-menu-item.danger { color: #c0392b; }
+.kb-menu-item.danger:hover { background: #fdf0ee; }
+.kb-menu-ico { width: 18px; text-align: center; font-size: calc(14px * var(--kb-scale)); flex-shrink: 0; }
+.kb-menu-badge {
+  margin-left: auto;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 9px;
+  background: #e2f6ea;
+  color: #07854a;
+  font-size: calc(11px * var(--kb-scale));
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── 舞台 ─────────────────────────────────────────────── */
+.kb-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* 数字人层：占满舞台，尺寸随屏幕自适应放大 */
+.kb-avatar {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0;
+}
+
+/* 让数字人直接站在舞台背景上，而不是装在一张卡片里 */
+.kb-avatar .xmov-player {
+  width: min(100%, 880px);
+  height: 100%;
+  min-height: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.kb-avatar .xmov-stage { min-height: 0; }
+
+/* 隐藏压在人物身上的状态胶囊与字幕条：
+   状态不需要在界面上展示，说话内容在左下对话区里。
+   想恢复：把下面这条注释掉即可 */
+.kb-avatar .xmov-status,
+.kb-avatar .xmov-subtitle,
+.kb-avatar .subtitle,
+.kb-avatar .xmov-setup { display: none; }
+
+/* 连接异常提示：底部居中小胶囊，别横贯整个舞台 */
+.kb-avatar .xmov-error {
+  left: 50%;
+  right: auto;
+  bottom: 22px;
+  width: auto;
+  max-width: min(92%, 520px);
+  transform: translateX(-50%);
+  padding: 9px 18px;
+  border-radius: 999px;
+  background: rgba(226, 74, 66, .95);
+  box-shadow: 0 10px 26px rgba(190, 56, 48, .3);
+  font-size: calc(12.5px * var(--kb-scale));
+  text-align: center;
+  z-index: 8;
+}
+
+/* ── 左上：摄像头训练卡（半透明毛玻璃）──────────────────── */
+.kb-cam {
+  position: absolute;
+  top: 2px;
+  left: 20px;
+  z-index: 10;
+  /* 宽度跟随字号轻微放大（阻尼系数用 min() 封在 1.25 倍以内），
+     既不会在 150% 字号下把标题挤出去，也不会在 200% 时吃掉半个屏幕 */
+  width: calc(250px * min(var(--kb-scale), 1.25));
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.kb-cam-card {
+  padding: 11px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, .58);
+  backdrop-filter: blur(18px) saturate(1.25);
+  -webkit-backdrop-filter: blur(18px) saturate(1.25);
+  border: 1px solid rgba(255, 255, 255, .72);
+  box-shadow: 0 16px 40px rgba(40, 88, 62, .14);
+}
+
+.kb-cam-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 2px 8px;
+}
+.kb-cam-title {
+  font-size: calc(13px * var(--kb-scale));
+  font-weight: 700;
+  color: #17281f;
+  letter-spacing: .02em;
+}
+.kb-cam-toggle {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: 50%;
+  border: none;
+  background: #07c160;
+  color: #fff;
+  font-family: inherit;
+  font-size: calc(12px * var(--kb-scale));
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(7, 193, 96, .38);
+  transition: background .16s, transform .16s;
+}
+.kb-cam-toggle:hover:not(:disabled) { transform: scale(1.06); }
+.kb-cam-toggle.on { background: #e8524a; box-shadow: 0 4px 12px rgba(232, 82, 74, .36); }
+.kb-cam-toggle:disabled { opacity: .6; cursor: wait; }
+
+.kb-cam-view {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(16, 26, 20, .82);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.kb-cam-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1);
+  display: block;
+}
+
+.kb-cam-empty {
+  color: #c8d4cd;
+  font-size: calc(12.5px * var(--kb-scale));
+  letter-spacing: .04em;
+}
+
+.kb-cam-err {
+  margin-top: 8px;
+  font-size: calc(12px * var(--kb-scale));
+  line-height: 1.5;
+  color: #d2473f;
+}
+
+.kb-cam-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 2px;
+}
+
+.kb-pill {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 15px;
+  border: 1px solid rgba(255, 255, 255, .7);
+  background: rgba(255, 255, 255, .58);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  color: #35443c;
+  font-family: inherit;
+  font-size: calc(12.5px * var(--kb-scale));
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  box-shadow: 0 8px 22px rgba(40, 88, 62, .12);
+  transition: background .16s;
+}
+.kb-pill:hover { background: rgba(255, 255, 255, .86); }
+.kb-pill .caret { font-size: calc(10px * var(--kb-scale)); color: #86988e; }
+
+.kb-pill-go {
+  border-color: rgba(7, 193, 96, .3);
+  background: rgba(7, 193, 96, .14);
+  color: #07854a;
+  font-weight: 600;
+}
+.kb-pill-go:hover { background: rgba(7, 193, 96, .24); }
+
+/* 训练部位下拉 */
+.kb-select { position: relative; }
+
+.kb-select-mask { position: fixed; inset: 0; z-index: 18; }
+
+.kb-select-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 19;
+  min-width: 136px;
+  padding: 6px;
+  border-radius: 13px;
+  background: rgba(255, 255, 255, .96);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 16px 38px rgba(72, 128, 96, .22);
+}
+
+.kb-select-item {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: #3a4a42;
+  font-family: inherit;
+  font-size: calc(13px * var(--kb-scale));
+  text-align: left;
+  cursor: pointer;
+}
+.kb-select-item:hover { background: #f3fbf6; }
+.kb-select-item.active { background: #eefaf3; color: #07854a; font-weight: 600; }
+
+/* ── 右上：试试这样问 ──────────────────────────────────── */
+.kb-side {
+  position: absolute;
+  top: 2px;
+  right: 20px;
+  z-index: 10;
+  width: fit-content;
+  min-width: calc(180px * min(var(--kb-scale), 1.25));
+  max-width: calc(272px * min(var(--kb-scale), 1.25));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.kb-ask {
+  padding: 12px 12px 11px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, .58);
+  backdrop-filter: blur(18px) saturate(1.25);
+  -webkit-backdrop-filter: blur(18px) saturate(1.25);
+  border: 1px solid rgba(255, 255, 255, .72);
+  box-shadow: 0 16px 40px rgba(40, 88, 62, .14);
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.kb-ask-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: calc(13px * var(--kb-scale));
+  font-weight: 700;
+  color: #17281f;
+  padding: 0 2px 3px;
+  letter-spacing: .02em;
+}
+.kb-ask-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #07c160;
+  box-shadow: 0 0 0 3px rgba(7, 193, 96, .16);
+  flex-shrink: 0;
+}
+
+.kb-ask-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.kb-ask-btn {
+  width: 100%;
+  padding: 9px 11px;
+  text-align: left;
+  border-radius: 11px;
+  /* 只保留描边，不填白底 —— 避免和下方毛玻璃叠成两层白 */
+  border: 1px solid rgba(19, 46, 32, .10);
+  background: rgba(255, 255, 255, .44);
+  color: #2c3b33;
+  font-family: inherit;
+  font-size: calc(12.5px * var(--kb-scale));
+  line-height: 1.5;
+  /* 长句自然换行，短句只占一行 —— 长度自适应 */
+  white-space: normal;
+  word-break: break-word;
+  cursor: pointer;
+  transition: background .16s, border-color .16s, transform .16s;
+}
+.kb-ask-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, .9);
+  border-color: rgba(7, 193, 96, .44);
+  transform: translateX(2px);
+}
+.kb-ask-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ── 底部中央：输入区 ─────────────────────────────────── */
+.kb-composer {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  z-index: 14;
+  /* 两侧浮层会随字号变宽，所以这里按比例把可用宽度还回去：
+     左右各预留 380px（字号越大预留越多，最多到 1.25 倍） */
+  width: min(660px, calc(100vw - 760px * min(var(--kb-scale), 1.25)));
+  min-width: 320px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+/* 智能提示条 */
+.kb-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 7px;
+}
+
+.kb-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 11px 0 5px;
+  border-radius: 15px;
+  border: 1px solid rgba(255, 255, 255, .74);
+  background: rgba(255, 255, 255, .58);
+  backdrop-filter: blur(16px) saturate(1.25);
+  -webkit-backdrop-filter: blur(16px) saturate(1.25);
+  color: #2c3b33;
+  font-family: inherit;
+  font-size: calc(12px * var(--kb-scale));
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: 0 8px 22px rgba(40, 88, 62, .12);
+  transition: background .16s, transform .16s;
+}
+.kb-chip:hover:not(:disabled) { background: rgba(255, 255, 255, .92); transform: translateY(-1px); }
+.kb-chip:disabled { opacity: .5; cursor: not-allowed; }
+
+/* 小蓝标（及其他色标） */
+.kb-chip-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 10px;
+  font-size: calc(11px * var(--kb-scale));
+  font-weight: 700;
+  letter-spacing: .02em;
+  color: #fff;
+}
+.kb-chip-tag.t-blue   { background: linear-gradient(140deg, #4c9bfd, #2f7dd1); }
+.kb-chip-tag.t-green  { background: linear-gradient(140deg, #2fc98a, #0f9c62); }
+.kb-chip-tag.t-amber  { background: linear-gradient(140deg, #ffb545, #ec8f14); }
+.kb-chip-tag.t-purple { background: linear-gradient(140deg, #a98bfb, #7d5ce0); }
+
+.kb-chip-text {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 输入框上方的功能操作按钮区 */
+.kb-tools {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+
+.kb-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, .74);
+  background: rgba(255, 255, 255, .58);
+  backdrop-filter: blur(16px) saturate(1.25);
+  -webkit-backdrop-filter: blur(16px) saturate(1.25);
+  color: #2c3b33;
+  font-family: inherit;
+  font-size: calc(12.5px * var(--kb-scale));
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: 0 8px 22px rgba(40, 88, 62, .12);
+  transition: background .16s, border-color .16s, transform .16s;
+}
+.kb-tool:hover:not(:disabled) {
+  background: rgba(255, 255, 255, .92);
+  border-color: rgba(7, 193, 96, .38);
+  transform: translateY(-1px);
+}
+.kb-tool:disabled { opacity: .5; cursor: not-allowed; }
+.kb-tool-ico { font-size: calc(14px * var(--kb-scale)); line-height: 1; }
+.kb-tool-more { border-color: rgba(19, 46, 32, .12); color: #56645c; }
+.kb-tool-more.on { border-color: rgba(7, 193, 96, .44); color: #07854a; font-weight: 600; }
+
+/* 大号圆润输入栏（毛玻璃） */
+.kb-composer .input-bar { gap: 8px; }
+
+.kb-composer .input-field {
+  flex: 1;
+  height: 54px;
+  padding: 0 20px;
+  font-size: calc(14.5px * var(--kb-scale));
+  border-radius: 27px;
+  border: 1px solid rgba(255, 255, 255, .78);
+  background: rgba(255, 255, 255, .66);
+  backdrop-filter: blur(20px) saturate(1.3);
+  -webkit-backdrop-filter: blur(20px) saturate(1.3);
+  color: #1f2e26;
+  outline: none;
+  box-shadow: 0 14px 34px rgba(40, 88, 62, .16);
+  transition: background .18s, border-color .18s, box-shadow .18s;
+}
+.kb-composer .input-field::placeholder { color: #8d9c93; }
+.kb-composer .input-field:focus {
+  background: rgba(255, 255, 255, .96);
+  border-color: rgba(7, 193, 96, .6);
+  box-shadow: 0 16px 40px rgba(7, 193, 96, .2);
+}
+
+/* 醒目的发送按钮 */
+.kb-composer .input-send {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  border: none;
+  background: linear-gradient(140deg, #12c96a, #049c4d);
+  color: #fff;
+  font-size: calc(22px * var(--kb-scale));
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+  box-shadow: 0 8px 22px rgba(7, 193, 96, .42);
+  transition: transform .16s, box-shadow .16s, background .16s;
+}
+.kb-composer .input-send:not(.disabled):hover {
+  transform: scale(1.06);
+  box-shadow: 0 10px 28px rgba(7, 193, 96, .52);
+}
+.kb-composer .input-send.disabled {
+  background: rgba(255, 255, 255, .7);
+  color: #a9b6ae;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+/* 语音按钮：和输入框同高 */
+.kb-composer .voice-btn {
+  width: 54px;
+  min-width: 54px;
+  height: 54px;
+  padding: 0;
+  font-size: calc(20px * var(--kb-scale));
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, .78);
+  background: rgba(255, 255, 255, .66);
+  backdrop-filter: blur(20px) saturate(1.3);
+  -webkit-backdrop-filter: blur(20px) saturate(1.3);
+  color: #2b3b32;
+  box-shadow: 0 14px 34px rgba(40, 88, 62, .16);
+}
+.kb-composer .voice-btn.recording {
+  width: auto;
+  min-width: 116px;
+  padding: 0 16px;
+  font-size: calc(13.5px * var(--kb-scale));
+  border-radius: 27px;
+  background: #ff4757;
+  border-color: #ff4757;
+  color: #fff;
+}
+.kb-composer .voice-wrap { gap: 2px; }
+.kb-composer .voice-hint {
+  font-size: calc(11.5px * var(--kb-scale));
+  color: #d2473f;
+  background: rgba(255, 255, 255, .82);
+  padding: 2px 8px;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+
+/* ── 左下：对话区（毛玻璃 + 可折叠）───────────────────── */
+.kb-dock {
+  position: absolute;
+  left: 20px;
+  bottom: 18px;
+  z-index: 13;
+  width: calc(336px * min(var(--kb-scale), 1.25));
+  max-width: calc(100vw - 40px);
+  /* 关键：给底部中央的输入区（约 200px 高）留出空间，
+     否则对话气泡会顶上去和输入框叠在一起 */
+  max-height: calc(100% - 210px);
+  padding: 10px 12px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, .5);
+  backdrop-filter: blur(18px) saturate(1.25);
+  -webkit-backdrop-filter: blur(18px) saturate(1.25);
+  border: 1px solid rgba(255, 255, 255, .72);
+  box-shadow: 0 18px 46px rgba(40, 88, 62, .18);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: padding .18s;
+}
+.kb-dock.collapsed { padding: 6px 10px; }
+
+.kb-dock-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 4px 4px 2px;
+  border: none;
+  background: transparent;
+  color: #17281f;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.kb-dock-title { font-size: calc(12.5px * var(--kb-scale)); font-weight: 700; letter-spacing: .02em; }
+.kb-dock-count {
+  min-width: 18px;
+  height: 17px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: rgba(7, 193, 96, .16);
+  color: #07854a;
+  font-size: calc(10.5px * var(--kb-scale));
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.kb-dock-caret {
+  margin-left: auto;
+  font-size: calc(11px * var(--kb-scale));
+  color: #7b8a82;
+  transition: transform .2s;
+}
+.kb-dock-caret.up { transform: rotate(180deg); }
+
+.kb-dock-msgs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  /* 用 flex 自适应剩余高度，再由父级 max-height 决定上限 */
+  flex: 1;
+  min-height: 0;
+  max-height: 210px;
+  overflow-y: auto;
+  padding: 2px 4px 2px 2px;
+}
+.kb-dock-msgs::-webkit-scrollbar { width: 4px; }
+.kb-dock-msgs::-webkit-scrollbar-thumb { background: rgba(19, 46, 32, .16); border-radius: 2px; }
+
+/* 问答两侧分离：用户靠右、助手靠左 */
+.kb-dock-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: calc(13px * var(--kb-scale));
+  line-height: 1.6;
+  max-width: 94%;
+}
+.kb-dock-row.assistant { align-self: flex-start; }
+.kb-dock-row.user {
+  align-self: flex-end;
+  flex-direction: row-reverse;
+  justify-content: flex-start;
+}
+
+.kb-dock-badge {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+  border-radius: 50%;
+  font-size: calc(10px * var(--kb-scale));
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.kb-dock-badge.a { background: #e2f6ea; color: #07854a; }
+.kb-dock-badge.u { background: #e6f0fd; color: #2f7dd1; }
+
+/* 气泡：助手浅色左气泡，用户绿色右气泡 */
+.kb-dock-bubble {
+  min-width: 0;
+  padding: 8px 11px;
+  border-radius: 13px;
+  color: #26332c;
+  word-break: break-word;
+}
+.kb-dock-row.assistant .kb-dock-bubble {
+  background: rgba(255, 255, 255, .82);
+  border-top-left-radius: 5px;
+}
+.kb-dock-row.user .kb-dock-bubble {
+  background: linear-gradient(140deg, #12c96a, #049c4d);
+  color: #fff;
+  border-top-right-radius: 5px;
+  box-shadow: 0 4px 14px rgba(7, 193, 96, .28);
+}
+
+.kb-dock-dots { display: inline-flex; gap: 4px; padding: 2px 0; }
+.kb-dock-dots i {
+  display: block; width: 6px; height: 6px; border-radius: 50%;
+  background: #9aa8a0; animation: kb-dot .9s ease-in-out infinite;
+}
+.kb-dock-dots i:nth-child(2) { animation-delay: .15s; }
+.kb-dock-dots i:nth-child(3) { animation-delay: .3s; }
+@keyframes kb-dot {
+  0%, 80%, 100% { transform: translateY(0); opacity: .4; }
+  40% { transform: translateY(-5px); opacity: 1; }
+}
+
+/* ── 历史会话弹层 ──────────────────────────────────────── */
+.kb-app .session-dropdown {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  background: rgba(16, 32, 24, .28);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 76px;
+}
+.kb-app .session-dropdown-inner {
+  width: min(calc(100vw - 40px), 420px);
+  max-height: 56vh;
+  overflow-y: auto;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 24px 60px rgba(24, 60, 40, .22);
+}
+
+/* ── 我的（档案）浮层 ──────────────────────────────────── */
+.kb-profile-layer {
+  position: absolute;
+  inset: 8px 0 0;
+  z-index: 40;
+  display: flex;
+  justify-content: center;
+  padding: 12px 20px 20px;
+}
+.kb-profile-layer .pp-page {
+  width: min(100%, 720px);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, .96);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: 0 18px 50px rgba(72, 128, 96, .16);
+  overflow: hidden;
+}
+
+/* ── 窄屏 / 平板：三栏宽度收缩 ────────────────────────── */
+@media (max-width: 1500px) {
+  .kb-composer { width: min(560px, calc(100vw - 700px)); }
+}
+
+@media (max-width: 1280px) {
+  .kb-composer { width: min(480px, calc(100vw - 620px)); min-width: 320px; }
+  .kb-side { max-width: 236px; }
+  .kb-dock { width: 300px; }
+  .kb-dock-msgs { max-height: 190px; }
+  /* 底部横向空间不够：输入区抬高，避免压到左下对话区 */
+  .kb-composer { bottom: 166px; }
+}
+
+@media (max-width: 1100px) {
+  .kb-cam { width: 216px; }
+  .kb-side { max-width: 208px; min-width: 160px; }
+  .kb-dock { width: 280px; }
+  .kb-dock-msgs { max-height: 160px; }
+  .kb-composer { width: min(420px, calc(100vw - 600px)); bottom: 148px; }
+  .kb-tool-text { display: none; }
+  .kb-tool { width: 34px; padding: 0; justify-content: center; }
+  .kb-tool-more { width: auto; padding: 0 11px; }
+  .kb-tool-more .kb-tool-text { display: inline; }
+}
+
+/* ── 窄屏（竖屏手机）：左右侧栏自动堆叠 ──────────────── */
+@media (max-width: 900px) {
+  /* 竖屏手机上 cover 会把 16:9 的横图裁得过狠 —— 只剩吊顶和墙面，
+     所以这里改成竖构图更耐看的写法：从顶部开始显示全宽，
+     纵向不拉伸，底部渐变收进品牌绿，避免露出硬边。 */
+  .kb-app::after {
+    background-image: url('/background/life-center.png');
+    background-position: center top;
+    background-size: 100% auto;
+    background-repeat: no-repeat;
+    background-color: transparent;
+  }
+  /* 背景只占顶部约 42vh，剩下的交给渐变，避免大片空白 */
+  .kb-app::before {
+    background:
+      linear-gradient(180deg,
+        rgba(255, 255, 255, .30) 0%,
+        rgba(255, 255, 255, .18) 16%,
+        rgba(235, 246, 240, .72) 30%,
+        #e7f4ec 40%,
+        #e7f4ec 100%);
+  }
+
+  .kb-header { padding: 10px 14px 0; min-height: 46px; }
+  .kb-menu-btn { width: 34px; height: 34px; font-size: calc(18px * var(--kb-scale)); }
+
+  /* 舞台改成纵向流式：数字人 → 摄像头 → 快捷提问 → 对话 → 输入 */
+  .kb-stage {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    overflow-y: auto;
+    padding: 6px 12px 12px;
+  }
+
+  .kb-cam,
+  .kb-side,
+  .kb-dock,
+  .kb-avatar,
+  .kb-composer {
+    position: static;
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    transform: none;
+  }
+
+  .kb-avatar {
+    order: 1;
+    min-height: 30vh;
+    padding: 0;
+  }
+  .kb-avatar .xmov-player { width: 100%; height: 30vh; }
+  .kb-avatar .xmov-status { display: none; }
+
+  .kb-cam { order: 2; }
+  .kb-cam-card { padding: 10px; }
+
+  .kb-side { order: 3; width: 100%; max-width: none; }
+  .kb-ask { padding: 11px; }
+  .kb-ask-list {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: 7px;
+    padding-bottom: 3px;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .kb-ask-list::-webkit-scrollbar { display: none; }
+  .kb-ask-btn { width: auto; white-space: nowrap; flex-shrink: 0; }
+
+  .kb-dock {
+    order: 4;
+    max-height: none;
+    position: sticky;
+    bottom: 0;
+    box-shadow: 0 10px 30px rgba(40, 88, 62, .16);
+  }
+  .kb-dock-msgs { max-height: 150px; flex: 0 1 auto; }
+
+  .kb-composer {
+    order: 5;
+    position: sticky;
+    bottom: 0;
+    padding-bottom: 4px;
+    background: linear-gradient(180deg, rgba(231, 244, 236, 0) 0%, rgba(231, 244, 236, .94) 22%, #e7f4ec 100%);
+  }
+  .kb-chips { justify-content: flex-start; overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; }
+  .kb-chips::-webkit-scrollbar { display: none; }
+  .kb-chip { flex-shrink: 0; }
+  .kb-chip-text { max-width: 160px; }
+  .kb-tools { justify-content: flex-start; overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; padding-bottom: 2px; }
+  .kb-tools::-webkit-scrollbar { display: none; }
+  .kb-tool { flex-shrink: 0; }
+  .kb-tool-text { display: none; }
+  .kb-tool { width: 34px; padding: 0; justify-content: center; }
+  .kb-tool-more { width: auto; padding: 0 11px; }
+  .kb-tool-more .kb-tool-text { display: inline; }
+
+  .kb-composer .input-field { height: 48px; font-size: calc(15px * var(--kb-scale)); border-radius: 24px; }
+  .kb-composer .input-send { width: 48px; height: 48px; font-size: calc(20px * var(--kb-scale)); }
+  .kb-composer .voice-btn { width: 48px; min-width: 48px; height: 48px; font-size: calc(18px * var(--kb-scale)); }
+  .kb-composer .voice-btn.recording { min-width: 104px; font-size: calc(12.5px * var(--kb-scale)); }
+
+  .kb-profile-layer { inset: 4px 0 0; padding: 8px 12px 12px; }
+}
+
+/* 极窄屏：进一步压缩内边距 */
+@media (max-width: 420px) {
+  .kb-stage { padding: 4px 9px 10px; gap: 8px; }
+  .kb-chip-text { max-width: 120px; }
+  .kb-dock-msgs { max-height: 128px; }
+}

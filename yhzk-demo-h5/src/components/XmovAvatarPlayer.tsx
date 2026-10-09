@@ -18,6 +18,23 @@ const EXPRESSION_LABELS: Record<string, string> = {
   sad: '温和低缓',
 };
 
+/** 把 SDK 抛出的任意值（Error / 字符串 / {code,message} 对象）转成可读文案 */
+function formatError(err: unknown): string {
+  if (err == null) return '未知错误';
+  if (err instanceof Error) return err.message || err.name || '未知错误';
+  if (typeof err === 'string') return err;
+  const anyErr = err as { message?: unknown; msg?: unknown; code?: unknown; error?: unknown };
+  for (const key of ['message', 'msg', 'error'] as const) {
+    const value = anyErr[key];
+    if (typeof value === 'string' && value) return value;
+  }
+  try {
+    const json = JSON.stringify(err);
+    if (json && json !== '{}') return json;
+  } catch { /* 循环引用等，忽略 */ }
+  return String(err);
+}
+
 function stateLabel(state: XmovAvatarRuntimeState): string {
   const labels: Record<XmovAvatarRuntimeState, string> = {
     unconfigured: '等待配置',
@@ -88,7 +105,7 @@ export default function XmovAvatarPlayer({
         failed = true;
         xmovAvatar.markUnavailable(provider);
         reportAvailability(false);
-        setError(nextError.message);
+        setError(formatError(nextError));
       },
       onExpressionChange: (plan) => {
         if (mounted) setExpression(plan);
@@ -106,7 +123,7 @@ export default function XmovAvatarPlayer({
       }).catch((nextError) => {
         xmovAvatar.markUnavailable(provider);
         if (!mounted) return;
-        setError(nextError instanceof Error ? nextError.message : String(nextError));
+        setError(formatError(nextError));
       });
     } else {
       setState('unconfigured');
@@ -130,7 +147,7 @@ export default function XmovAvatarPlayer({
     try {
       await action(provider);
     } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : String(nextError));
+      setError(formatError(nextError));
     } finally {
       setBusyAction('');
     }

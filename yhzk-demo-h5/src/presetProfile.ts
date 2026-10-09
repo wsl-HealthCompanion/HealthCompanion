@@ -84,3 +84,31 @@ export function getPresetQuestions(profile?: PresetProfile): string[] {
 
   return qs.slice(0, 5);
 }
+
+// ── 智能提示条 ────────────────────────────────────────────
+// 根据档案生成"带小标签的主动建议"。tag 是 2 个字的小蓝标，text 是完整问句。
+export interface SmartChip {
+  tag: string;
+  text: string;
+  tone: 'blue' | 'green' | 'amber' | 'purple';
+}
+
+export function getSmartChips(profile?: PresetProfile): SmartChip[] {
+  const chips: SmartChip[] = [];
+  const d = profile?.diseases || [];
+  const meds = profile?.medications || [];
+
+  if (d.some(x => x.includes('血压'))) {
+    chips.push({ tag: '血压', text: '我今天的血压该注意什么？', tone: 'blue' });
+  }
+  if (d.some(x => x.includes('糖尿') || x.includes('血糖'))) {
+    chips.push({ tag: '血糖', text: '今天三餐怎么吃对血糖更好？', tone: 'green' });
+  }
+  if (meds.length > 0) {
+    chips.push({ tag: '用药', text: `我吃的${meds[0]}该什么时候吃？`, tone: 'amber' });
+  }
+  chips.push({ tag: '运动', text: '今天适合做多长时间的肩部训练？', tone: 'purple' });
+  chips.push({ tag: '睡眠', text: '晚上总是醒，怎么改善睡眠？', tone: 'blue' });
+
+  return chips.slice(0, 4);
+}
