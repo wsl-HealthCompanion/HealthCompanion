@@ -57,7 +57,7 @@ echo     POST http://127.0.0.1:3001/api/v1/chat/simple
 echo.
 echo   注意：H5 默认请求 3000 端口。要让前端走这个后端，请在前端目录
 echo         新建 .env.local 并写入：
-echo             VITE_PROXY_API_TARGET=http://127.0.0.1:3001
+echo             VITE_API_BASE=http://127.0.0.1:3001/api/v1
 echo         然后重启前端（03-start-frontend.bat）。
 echo.
 echo   停止服务：Ctrl + C
