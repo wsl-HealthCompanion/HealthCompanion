@@ -1,97 +1,70 @@
-import { useState, useRef, useCallback } from 'react';
-import { sendSmsCode, phoneLogin, saveAuth, type LoginResult } from '../services/auth';
+import { useState } from 'react';
+import { phoneLogin, saveAuth, type LoginResult } from '../services/auth';
 
 interface Props {
   onLogin: (result: LoginResult) => void;
 }
 
+/** 演示账号 — 页面上只是一道简单的门, 底层走后端开发模式登录(固定演示手机号+验证码) */
+const DEMO_ACCOUNT = 'admin';
+const DEMO_PASSWORD = '123456';
+const DEMO_PHONE = '17777777777';
+const DEMO_CODE = '123456';
+
 export default function LoginPage({ onLogin }: Props) {
-  const [phone, setPhone] = useState('');
-  const [code, setCode] = useState('');
-  const [sending, setSending] = useState(false);
-  const [countdown, setCountdown] = useState(0);
+  const [account, setAccount] = useState(DEMO_ACCOUNT);
+  const [password, setPassword] = useState(DEMO_PASSWORD);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const startCountdown = useCallback((seconds: number) => {
-    setCountdown(seconds);
-    if (timerRef.current) clearInterval(timerRef.current);
-    timerRef.current = setInterval(() => {
-      setCountdown(prev => {
-        if (prev <= 1) { if (timerRef.current) clearInterval(timerRef.current); return 0; }
-        return prev - 1;
-      });
-    }, 1000);
-  }, []);
-
-  const handleSendCode = async () => {
-    const p = phone.replace(/\s/g, '');
-    if (p.length !== 11) { setError('请输入11位手机号'); return; }
-    setSending(true); setError('');
-    try {
-      const res = await sendSmsCode(p);
-      startCountdown(res.retryAfter || 60);
-    } catch (e: any) {
-      setError(e.message || '发送失败，请稍后重试');
-    } finally { setSending(false); }
-  };
 
   const handleLogin = async () => {
-    if (code.length !== 6) { setError('请输入6位验证码'); return; }
-    setLoading(true); setError('');
+    if (account.trim() !== DEMO_ACCOUNT || password !== DEMO_PASSWORD) {
+      setError('账号或密码不正确');
+      return;
+    }
+    setLoading(true);
+    setError('');
     try {
-      const result = await phoneLogin(phone.replace(/\s/g, ''), code);
+      const result = await phoneLogin(DEMO_PHONE, DEMO_CODE);
       saveAuth(result);
       onLogin(result);
     } catch (e: any) {
-      setError(e.message || '登录失败');
-    } finally { setLoading(false); }
+      setError(e.message || '登录失败，请确认后端已启动');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="login-page">
       <div className="login-card">
-        <div className="login-logo">炎</div>
-        <h1 className="login-title">炎华众康</h1>
-        <p className="login-sub">主动健康管理系统</p>
+        <div className="login-logo">康</div>
+        <h1 className="login-title">康伴智生</h1>
+        <p className="login-sub">生活助手</p>
 
         <div className="login-field">
-          <label>手机号</label>
-          <div className="login-phone-row">
-            <span className="login-prefix">+86</span>
-            <input
-              type="tel"
-              maxLength={11}
-              value={phone}
-              onChange={e => { setPhone(e.target.value.replace(/\D/g, '')); setError(''); }}
-              placeholder="请输入手机号"
-              disabled={loading}
-            />
-          </div>
+          <label>账号</label>
+          <input
+            type="text"
+            value={account}
+            onChange={e => { setAccount(e.target.value); setError(''); }}
+            placeholder="账号"
+            disabled={loading}
+            autoComplete="username"
+          />
         </div>
 
         <div className="login-field">
-          <label>验证码</label>
-          <div className="login-code-row">
-            <input
-              type="text"
-              inputMode="numeric"
-              maxLength={6}
-              value={code}
-              onChange={e => { setCode(e.target.value.replace(/\D/g, '').slice(0, 6)); setError(''); }}
-              placeholder="6位验证码"
-              disabled={loading}
-            />
-            <button
-              className="login-send-btn"
-              onClick={handleSendCode}
-              disabled={sending || countdown > 0 || phone.length !== 11}
-            >
-              {countdown > 0 ? `${countdown}s` : sending ? '...' : '获取验证码'}
-            </button>
-          </div>
-          <p className="login-hint">开发模式: 输入 123456 即可登录</p>
+          <label>密码</label>
+          <input
+            type="password"
+            value={password}
+            onChange={e => { setPassword(e.target.value); setError(''); }}
+            onKeyDown={e => { if (e.key === 'Enter') handleLogin(); }}
+            placeholder="密码"
+            disabled={loading}
+            autoComplete="current-password"
+          />
         </div>
 
         {error && <div className="login-error">{error}</div>}
@@ -99,10 +72,11 @@ export default function LoginPage({ onLogin }: Props) {
         <button
           className="login-btn"
           onClick={handleLogin}
-          disabled={loading || code.length !== 6}
+          disabled={loading}
         >
           {loading ? '登录中...' : '登录'}
         </button>
+        <p className="login-hint">演示账号: admin / 123456</p>
       </div>
     </div>
   );
