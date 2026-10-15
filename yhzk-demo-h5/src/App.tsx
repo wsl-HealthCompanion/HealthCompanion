@@ -394,7 +394,7 @@ export default function App() {
     }
   }, [messages.length]);  // 只监听数量变化，不监听 content 变化
 
-  const handleSend = useCallback(async (text: string) => {
+  const handleSend = useCallback(async (text: string, images?: string[]) => {
     const msg = String(text || '').trim();
     if (!msg || isBusy) return;
 
@@ -424,7 +424,7 @@ export default function App() {
     digitalHumanCapability?.interrupt().catch(() => {});
     clearSubtitleTimers(); // 取消上一轮残留的字幕定时器
 
-    setMessages(prev => [...prev, { id: `u_${Date.now()}`, role: 'user', content: msg }]);
+    setMessages(prev => [...prev, { id: `u_${Date.now()}`, role: 'user', content: msg, image: images?.[0] }]);
     setSubtitle(msg);
     setSubtitleRole('user');
     setStatus('thinking');
@@ -522,7 +522,7 @@ export default function App() {
 
     try {
       const result = await streamChat(
-        { message: msg, sessionId: currentSessionId || sessionId, profile: profile.profileData },
+        { message: msg, sessionId: currentSessionId || sessionId, profile: profile.profileData, images },
         {
           onToken: (char) => {
             if (!isCurrentConversation()) return;
@@ -555,7 +555,7 @@ export default function App() {
 
       if (!result.streamed) {
         const json = await sendChatJson(
-          { message: msg, sessionId, profile: profile.profileData },
+          { message: msg, sessionId, profile: profile.profileData, images },
           conversationAbort.signal,
         );
         if (!isCurrentConversation()) return;
@@ -888,7 +888,7 @@ export default function App() {
               </div>
               <InputBar
                 disabled={isBusy}
-                onSend={(t) => { setEditText(''); handleSend(t); }}
+                onSend={(t, imgs) => { setEditText(''); handleSend(t, imgs); }}
                 editText={editText}
               />
             </div>
@@ -921,7 +921,10 @@ export default function App() {
                       <div className={`kb-dock-badge ${m.role === 'user' ? 'u' : 'a'}`}>
                         {m.role === 'user' ? '问' : '答'}
                       </div>
-                      <div className="kb-dock-bubble">{cleanMd(m.content)}</div>
+                      <div className="kb-dock-bubble">
+                        {m.image && <img className="kb-dock-thumb" src={m.image} alt="拍摄的照片" />}
+                        {cleanMd(m.content)}
+                      </div>
                     </div>
                   ))}
 

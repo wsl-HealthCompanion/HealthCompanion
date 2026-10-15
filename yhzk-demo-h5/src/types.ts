@@ -12,6 +12,8 @@ export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  /** 用户随消息拍摄的图片(首张, 用于气泡缩略图; 图片不落盘仅本会话展示) */
+  image?: string;
 }
 
 export interface QuickReply {
