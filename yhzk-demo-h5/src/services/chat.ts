@@ -15,6 +15,20 @@ export interface ChatParams {
   message: string;
   sessionId: string;
   profile: Record<string, any>;
+  /** 拍照问一问 — 已压缩的 jpeg data URI, 最多4张 (后端 DTO 校验) */
+  images?: string[];
+}
+
+/** 组装请求体 — 契约: images 为空/缺省不带该字段 */
+export function buildChatBody(params: ChatParams): string {
+  const payload: Record<string, unknown> = {
+    message: params.message,
+    sessionId: params.sessionId || '',
+    type: 'text',
+    profile: params.profile,
+  };
+  if (params.images?.length) payload.images = params.images;
+  return JSON.stringify(payload);
 }
 
 export interface StreamCallbacks {
@@ -35,12 +49,7 @@ export async function streamChat(
   cb: StreamCallbacks,
   signal?: AbortSignal,
 ): Promise<{ streamed: boolean }> {
-  const body = JSON.stringify({
-    message: params.message,
-    sessionId: params.sessionId || '',
-    type: 'text',
-    profile: params.profile,
-  });
+  const body = buildChatBody(params);
 
   try {
     const resp = await fetch(`${API_BASE}/chat/message`, {
@@ -137,12 +146,7 @@ export interface JsonResult {
 
 /** JSON 一次性回退 */
 export async function sendChatJson(params: ChatParams, signal?: AbortSignal): Promise<JsonResult> {
-  const body = JSON.stringify({
-    message: params.message,
-    sessionId: params.sessionId || '',
-    type: 'text',
-    profile: params.profile,
-  });
+  const body = buildChatBody(params);
   try {
     const resp = await fetch(`${API_BASE}/chat/send`, {
       method: 'POST',
