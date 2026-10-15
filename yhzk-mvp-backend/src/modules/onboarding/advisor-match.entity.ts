@@ -5,6 +5,7 @@ import {
   CreateDateColumn,
   Index,
 } from 'typeorm';
+import { portableDateColumnType } from '../../common/database/column-types';
 
 /**
  * advisor_match 表 TypeORM Entity
@@ -32,6 +33,6 @@ export class AdvisorMatch {
   @Column({ type: 'boolean', default: false })
   is_fallback!: boolean;
 
-  @CreateDateColumn({ type: 'timestamp' })
+  @CreateDateColumn({ type: portableDateColumnType })
   created_at!: Date;
 }

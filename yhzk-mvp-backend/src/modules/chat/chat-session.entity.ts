@@ -5,6 +5,7 @@ import {
   CreateDateColumn,
   Index,
 } from 'typeorm';
+import { portableDateColumnType } from '../../common/database/column-types';
 
 /**
  * chat_sessions 表 TypeORM Entity
@@ -43,12 +44,12 @@ export class ChatSession {
   message_count!: number;
 
   @Index('idx_sessions_last_active')
-  @Column({ type: 'timestamp', default: () => 'now()' })
+  @Column({ type: portableDateColumnType, default: () => 'CURRENT_TIMESTAMP' })
   last_active!: Date;
 
-  @Column({ type: 'timestamp' })
+  @Column({ type: portableDateColumnType })
   expires_at!: Date;
 
-  @CreateDateColumn({ type: 'timestamp' })
+  @CreateDateColumn({ type: portableDateColumnType })
   created_at!: Date;
 }
