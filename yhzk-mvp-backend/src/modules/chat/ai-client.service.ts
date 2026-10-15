@@ -2,6 +2,24 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios, { AxiosResponse } from 'axios';
 import { Readable } from 'stream';
+import { imageDataUriMime } from './validators/chat-image.validator';
+
+/** 发给 ai-service 的附图 — M0 契约: { kind: "image", mime, data(完整 data URI) } */
+export interface ChatImageAttachment {
+  kind: 'image';
+  mime: string;
+  data: string;
+}
+
+/** H5 的 images[](data URI 数组) → ai-service 的 attachments[] */
+export function imagesToAttachments(images?: string[]): ChatImageAttachment[] {
+  if (!images?.length) return [];
+  return images.map((dataUri) => ({
+    kind: 'image' as const,
+    mime: imageDataUriMime(dataUri) || 'image/jpeg',
+    data: dataUri,
+  }));
+}
 
 /**
  * AI 客户端服务
@@ -54,20 +72,27 @@ export class AiClientService {
     downgrade_level?: string;
     recent_intents?: string[];
     recent_memories?: string[];
+    attachments?: ChatImageAttachment[];
   }): AsyncGenerator<any, void, unknown> {
     try {
+      const body: Record<string, unknown> = {
+        user_message: input.user_message,
+        user_context: input.user_context,
+        conversation_history: input.conversation_history,
+        scene_mode: input.scene_mode,
+        message_type: input.message_type || 'text',
+        downgrade_level: input.downgrade_level || 'none',
+        recent_intents: input.recent_intents || [],
+        recent_memories: input.recent_memories || [],
+      };
+      // 契约: 缺省/为空不携带该字段, 保持向后兼容
+      if (input.attachments?.length) {
+        body.attachments = input.attachments;
+      }
+
       const response: AxiosResponse<Readable> = await axios.post(
         `${this.baseUrl}/v1/chat/stream`,
-        {
-          user_message: input.user_message,
-          user_context: input.user_context,
-          conversation_history: input.conversation_history,
-          scene_mode: input.scene_mode,
-          message_type: input.message_type || 'text',
-          downgrade_level: input.downgrade_level || 'none',
-          recent_intents: input.recent_intents || [],
-          recent_memories: input.recent_memories || [],
-        },
+        body,
         {
           responseType: 'stream',
           headers: {

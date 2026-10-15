@@ -52,6 +52,10 @@ export class ChatMessage {
   @Column({ type: 'text', nullable: true })
   quick_replies!: any;
 
+  /** 用户消息是否附带截图(图片本体不落盘, 仅标记) */
+  @Column({ type: 'boolean', default: false })
+  has_attachments!: boolean;
+
   @Column({ type: 'text', default: '{}' })
   meta!: Record<string, any>;
 
