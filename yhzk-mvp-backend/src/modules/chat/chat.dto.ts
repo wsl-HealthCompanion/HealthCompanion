@@ -1,5 +1,17 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsOptional, IsUUID, IsIn, Length } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsUUID,
+  IsIn,
+  IsArray,
+  ArrayMaxSize,
+  Length,
+} from 'class-validator';
+import {
+  CHAT_IMAGE_MAX_COUNT,
+  IsChatImageDataUri,
+} from './validators/chat-image.validator';
 
 // ===== 发送消息请求 =====
 
@@ -21,6 +33,17 @@ export class SendMessageDto {
   @ApiPropertyOptional({ description: '用户档案上下文(小程序传)' })
   @IsOptional()
   profile?: any;
+
+  @ApiPropertyOptional({
+    description: '随消息附带的截图(浏览器压缩后的 data URI, 最多4张, 单张解码后≤2MB)',
+    type: [String],
+    example: ['data:image/jpeg;base64,...'],
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(CHAT_IMAGE_MAX_COUNT)
+  @IsChatImageDataUri({ each: true })
+  images?: string[];
 }
 
 // ===== 会话列表响应 =====

@@ -58,6 +58,7 @@ export class ChatController {
         dto.message,
         (dto.type as 'text' | 'quick_reply') || 'text',
         dto.profile, // H5 前端传来的档案
+        dto.images, // H5 拍照问一问的附图
       );
 
       for await (const event of stream) {

@@ -1,13 +1,21 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import * as express from 'express';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 
+// 拍照问一问: 4张 × 2MB 图片经 base64 后约 10.7MB JSON, 放宽到 15MB 留余量
+// (实际张数/单张大小由 SendMessageDto 的 images 校验收口)
+const JSON_BODY_LIMIT = process.env.JSON_BODY_LIMIT || '15mb';
+
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  // 关闭 Nest 内置 body parser(默认 100kb), 换成带大 payload 限额的 json/urlencoded
+  const app = await NestFactory.create(AppModule, { bodyParser: false });
+  app.use(express.json({ limit: JSON_BODY_LIMIT }));
+  app.use(express.urlencoded({ extended: true, limit: JSON_BODY_LIMIT }));
 
   // 全局前缀: /api/v1
   app.setGlobalPrefix('api/v1');

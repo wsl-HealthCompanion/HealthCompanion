@@ -10,7 +10,7 @@ import { ChatSession } from './chat-session.entity';
 import { ChatMessage as ChatMessageEntity, MessageRole } from './chat-message.entity';
 import { OrchestratorAgent } from './agents/orchestrator.agent';
 import { KnowledgeQAAgent } from './agents/knowledge-qa.agent';
-import { AiClientService } from './ai-client.service';
+import { AiClientService, imagesToAttachments } from './ai-client.service';
 import { TTSService } from './tts/tts.service';
 import { UserContext, Message } from './agents/agent.interface';
 import { redisConfig, RedisKeys, RedisTTL } from '../../config/redis.config';
@@ -71,6 +71,7 @@ export class ChatService {
     message: string,
     messageType: 'text' | 'quick_reply' = 'text',
     frontendProfile?: Record<string, any>, // H5 前端传来的档案
+    images?: string[], // H5 拍照问一问 — 已通过 DTO 校验的 data URI
   ): AsyncGenerator<SSEEvent> {
     const now = () => Date.now();
 
@@ -101,6 +102,7 @@ export class ChatService {
       session_id: session.session_id,
       role: MessageRole.USER,
       content: message,
+      has_attachments: !!images?.length,
     });
 
     // 更新会话计数
@@ -120,11 +122,17 @@ export class ChatService {
 
       if (pythonHealthy) {
         this.logger.log(`User ${userId} routed to Python AI`);
-        yield* this.processPythonAI(userId, session, message, messageType, userContext, history);
+        yield* this.processPythonAI(userId, session, message, messageType, userContext, history, images);
         return;
       } else {
         this.logger.warn(`Python AI unhealthy, falling back to legacy for user ${userId}`);
       }
+    }
+
+    if (images?.length) {
+      this.logger.warn(
+        `User ${userId}: legacy/direct mode has no vision capability, dropping ${images.length} image(s)`,
+      );
     }
 
     // 5. 直达模式 — 所有消息直接生成回复（跳过 Orchestrator + Knowledge QA）
@@ -698,6 +706,7 @@ export class ChatService {
     messageType: 'text' | 'quick_reply',
     userContext: UserContext,
     history: Message[],
+    images?: string[],
   ): AsyncGenerator<SSEEvent> {
     const now = () => Date.now();
     let accumulatedReply = '';
@@ -718,6 +727,7 @@ export class ChatService {
         downgrade_level: 'none',
         recent_intents: [],
         recent_memories: recentMemories,
+        attachments: imagesToAttachments(images),
       })) {
         // 累积token用于TTS
         if (event.type === 'token') {
