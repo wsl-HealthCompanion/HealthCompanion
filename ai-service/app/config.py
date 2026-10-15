@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     deepseek_base_url: str = "https://api.deepseek.com/v1"
     qwen_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 
+    # 视觉理解(拍照问一问) — scene_understand 用的 VL 模型
+    ai_vision_model: str = "qwen-vl-plus"
+
     # Milvus
     milvus_address: str = "localhost:19530"
     # RAG 开关 — Milvus 未部署/无知识库时关闭, knowledge_qa 直接用模型自身知识(方案B)
@@ -103,6 +106,15 @@ AGENT_REGISTRY: dict[str, AgentConfig] = {
         timeout=30.0,
         temperature=0.3,
         max_tokens=3072,
+    ),
+    # M0 拍照问一问 — 视觉理解(带图消息直达, 不经 orchestrator)
+    "scene_understand": AgentConfig(
+        enabled=True,
+        provider="qwen",  # DeepSeek 无视觉能力, 必须走通义 VL
+        model=settings.ai_vision_model,  # 默认 qwen-vl-plus, 环境变量 AI_VISION_MODEL 可覆写
+        timeout=15.0,  # VL 模型单图 1-3s, 留足余量
+        temperature=0.2,
+        max_tokens=500,
     ),
 }
 

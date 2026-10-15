@@ -9,6 +9,7 @@ import time
 
 from app.schemas.io import ChatRequest, ChatResponse
 from app.graph.build import get_graph
+from app.graph.nodes.scene_understand import scene_understand_node
 from app.utils.speech_stream import SpeechChunkStream
 
 router = APIRouter()
@@ -38,6 +39,8 @@ async def chat_stream(req: ChatRequest):
         "downgrade_level": req.downgrade_level,
         "recent_intents": req.recent_intents,
         "recent_memories": req.recent_memories,  # L2 中期记忆
+        # M0 拍照问一问 — 非空时预路由直达 scene_understand
+        "attachments": [a.model_dump() for a in (req.attachments or [])],
     }
 
     async def event_generator():
@@ -94,12 +97,34 @@ async def chat_stream(req: ChatRequest):
                     if "knowledge_qa" in name and "agent_outputs" in output:
                         state.setdefault("agent_outputs", {}).update(output["agent_outputs"])
 
+                    # M0 场景理解节点 — intent 提前发出(数字人表情), 输出并入 state
+                    if "scene_understand" in name:
+                        if not emitted_intent and output.get("intent"):
+                            yield {
+                                "event": "message",
+                                "data": json.dumps({
+                                    "type": "intent",
+                                    "primary": output.get("intent", "scene_query"),
+                                    "confidence": output.get("confidence", 0.9),
+                                    "emotion": output.get("emotion_detected", "neutral"),
+                                    "timestamp": now()
+                                })
+                            }
+                            emitted_intent = True
+                        # 与 orchestrator 分支一致: intent/情绪回写 state(done 事件要用)
+                        for key in ("intent", "confidence", "emotion_detected"):
+                            if key in output:
+                                state[key] = output[key]
+                        if "agent_outputs" in output:
+                            state.setdefault("agent_outputs", {}).update(output["agent_outputs"])
+
                 # 3.2 LLM token 流式输出 (knowledge_qa 节点的 LLM)
                 if event_type == "on_chat_model_stream":
                     metadata = event.get("metadata", {})
                     node_name = metadata.get("langgraph_node", "")
 
-                    if node_name == "knowledge_qa":
+                    # knowledge_qa 与 scene_understand(VL) 都走 token 流
+                    if node_name in ("knowledge_qa", "scene_understand"):
                         chunk = event["data"].get("chunk")
                         if chunk:
                             token = chunk.content if hasattr(chunk, "content") else str(chunk)
@@ -143,6 +168,12 @@ async def chat_stream(req: ChatRequest):
                 qa_out = final_state.get("agent_outputs", {}).get("knowledge_qa", {})
                 if not reply and (qa_out.get("tts_text") or qa_out.get("final_reply")):
                     reply = qa_out.get("tts_text") or qa_out["final_reply"]
+
+                # M0 scene_understand → agent_outputs.scene_understand.final_reply
+                # (VL 流式不可用/降级时走这里, 逐字补发)
+                scene_out = final_state.get("agent_outputs", {}).get("scene_understand", {})
+                if not reply and (scene_out.get("tts_text") or scene_out.get("final_reply")):
+                    reply = scene_out.get("tts_text") or scene_out["final_reply"]
 
                 if reply:
                     print(f"[SSE DEBUG] Emitting {len(reply)} token events for reply", file=sys.stderr)
@@ -188,7 +219,11 @@ async def chat_stream(req: ChatRequest):
             quick_replies = []
             if final_state.get("agent_outputs", {}).get("knowledge_qa"):
                 qa_output = final_state["agent_outputs"]["knowledge_qa"]
-                quick_replies = qa_output.get("quick_replies", [])
+                quick_replies = qa_output.get("quick_replies", []) or []
+
+            # M0 scene_understand 的快捷回复(knowledge_qa 没有时)
+            if not quick_replies and final_state.get("agent_outputs", {}).get("scene_understand"):
+                quick_replies = final_state["agent_outputs"]["scene_understand"].get("quick_replies", []) or []
 
             if quick_replies:
                 yield {
@@ -250,7 +285,34 @@ async def memory_summarize(req: dict):
 async def chat_non_stream(req: dict):
     """
     非流式聊天接口(用于测试/调试)
+
+    带 attachments 时走真实的场景理解节点; 无图时返回固定应答(联调占位)。
     """
+    parsed = None
+    try:
+        parsed = ChatRequest(**req)
+    except Exception:
+        parsed = None
+
+    if parsed and parsed.attachments:
+        result = await scene_understand_node({
+            "user_message": parsed.user_message,
+            "attachments": [a.model_dump() for a in parsed.attachments],
+        })
+        out = result["agent_outputs"]["scene_understand"]
+        return {
+            "intent": "scene_query",
+            "confidence": 0.9,
+            "exercise": out.get("exercise", "unknown"),
+            "final_reply": out["final_reply"],
+            "tts_text": out["final_reply"],
+            "quick_replies": out.get("quick_replies", []),
+            "citations": [],
+            "emotion_detected": result.get("emotion_detected", "neutral"),
+            "should_alert": False,
+            "latency_ms": 0,
+        }
+
     return {
         "intent": "general_chat",
         "confidence": 0.85,

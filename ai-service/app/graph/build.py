@@ -1,11 +1,31 @@
 """
 LangGraph 状态图构建
-编排 ① Orchestrator + ④ Knowledge QA
+编排 ① Orchestrator + ④ Knowledge QA + 场景理解(M0 拍照问一问)
+
+流程:
+  START → [预路由]
+            ├─ attachments 非空 → scene_understand → END  (带图直达, VLM 看图回答)
+            └─ 无图 → orchestrator → [条件路由]
+                                       ├→ knowledge_qa → END
+                                       └→ END (直接回复/紧急)
 """
 from langgraph.graph import StateGraph, START, END
 from app.graph.state import ChatState
 from app.graph.nodes.orchestrator import orchestrator_node
 from app.graph.nodes.knowledge_qa import knowledge_qa_node
+from app.graph.nodes.scene_understand import scene_understand_node
+
+
+def route_by_attachments(state: ChatState) -> str:
+    """
+    预路由(START 条件边): 带图消息直达 scene_understand
+
+    orchestrator 的意图表是纯文本 prompt, 看不到图片内容,
+    无法可靠判断"用户是不是在问这张图", 所以走确定性预路由。
+    """
+    if state.get("attachments"):
+        return "scene_understand"
+    return "orchestrator"
 
 
 def route_by_intent(state: ChatState) -> str:
@@ -44,11 +64,6 @@ def build_graph() -> StateGraph:
     """
     构建 LangGraph 状态图
 
-    流程:
-      START → orchestrator → [条件路由]
-                               ├→ knowledge_qa → END
-                               └→ END (直接回复/紧急)
-
     Returns:
         编译后的 LangGraph
     """
@@ -58,11 +73,19 @@ def build_graph() -> StateGraph:
     # 添加节点
     graph.add_node("orchestrator", orchestrator_node)
     graph.add_node("knowledge_qa", knowledge_qa_node)
+    graph.add_node("scene_understand", scene_understand_node)
 
-    # 添加边
-    graph.add_edge(START, "orchestrator")
+    # 预路由: 带图直达 scene_understand, 无图进 orchestrator
+    graph.add_conditional_edges(
+        START,
+        route_by_attachments,
+        {
+            "scene_understand": "scene_understand",
+            "orchestrator": "orchestrator",
+        },
+    )
 
-    # 条件路由
+    # orchestrator 后的意图路由
     graph.add_conditional_edges(
         "orchestrator",
         route_by_intent,
@@ -72,8 +95,9 @@ def build_graph() -> StateGraph:
         }
     )
 
-    # knowledge_qa 完成后结束
+    # 两个叶子节点完成后结束
     graph.add_edge("knowledge_qa", END)
+    graph.add_edge("scene_understand", END)
 
     # 编译
     return graph.compile()

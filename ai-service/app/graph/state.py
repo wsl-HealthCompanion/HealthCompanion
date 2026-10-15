@@ -16,6 +16,7 @@ class ChatState(TypedDict):
     conversation_history: list[dict]
     user_context: dict
     scene_mode: str
+    attachments: NotRequired[list[dict]]  # M0 拍照问一问 — 非空时直达 scene_understand
     downgrade_level: NotRequired[Literal["none", "L1", "L2"]]
     recent_intents: NotRequired[list[str]]
 
